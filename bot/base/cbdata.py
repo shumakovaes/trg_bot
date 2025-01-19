@@ -1,4 +1,4 @@
-from aiogram.dispatcher.filters.callback_data import CallbackData
+from aiogram.filters.callback_data import CallbackData
 
-class NewProfileCallbackFactory(CallbackData, prefix="new_profile_role"):
+class NewProfileRoleCallbackFactory(CallbackData, prefix="new_profile_role"):
     role: str
