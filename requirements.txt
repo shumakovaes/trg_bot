@@ -1,4 +1,5 @@
 aiogram>2
+aiogram-dialog
 pydantic
 pydantic_settings
 magic-filter
@@ -8,4 +9,3 @@ alembic
 asyncpg
 python-dotenv
 aioredis
-aiogram-dialog
