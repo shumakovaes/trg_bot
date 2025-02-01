@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher, F
+from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram_dialog import setup_dialogs
 
 from config_reader import config
@@ -12,8 +13,9 @@ from bot.dialogs import registration
 async def main():
     logging.basicConfig(level=logging.INFO)
 
+    storage = MemoryStorage()
     bot = Bot(token=config.bot_token.get_secret_value())
-    dp = Dispatcher()
+    dp = Dispatcher(storage=storage)
 
     dp.message.filter(F.chat.type == "private")
 
