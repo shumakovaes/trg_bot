@@ -33,16 +33,16 @@ async def get_time_zones(**kwargs):
     for zone in range(1, 13):
         str_zone = "GMT+{}".format(zone)
         str_id = "time_zone_gmt+{}".format(zone)
-        time_zones.append({ "zone": str_zone, "id": str_id })
+        time_zones.append({ "time_zone": str_zone, "id": str_id })
 
-    time_zones.append({ "zone": "GMT+0", "id": "time_zone_gmt+0" })
+    time_zones.append({ "time_zone": "GMT+0", "id": "time_zone_gmt+0" })
     for zone in range(1, 12):
         str_zone = "GMT-{}".format(zone)
         str_id = "time_zone_gmt-{}".format(zone)
-        time_zones.append({ "zone": str_zone, "id": str_id })
+        time_zones.append({ "time_zone": str_zone, "id": str_id })
 
     return {
-        "zones": time_zones
+        "time_zones": time_zones
     }
 
 # RAISING ERROR
@@ -96,14 +96,18 @@ async def save_city(callback: CallbackQuery, button: Button, manager: DialogMana
     profile["city"] = item["city"]
     profile["time_zone"] = item["time_zone"]
 
-    # TODO: detect time zone automatically for all cities
     await manager.switch_to(Registration.choosing_role)
+
+async def save_city_from_user(message: Message, message_input: MessageInput, manager: DialogManager):
+    # TODO: detect time zone automatically for all cities
+    profile["city"] = message.text
+    await manager.switch_to(Registration.choosing_time_zone)
 
 async def save_time_zone(callback: CallbackQuery, button: Button, manager: DialogManager,  item_id: str):
     data = await get_time_zones()
     items = data["time_zones"]
     item = [item for item in items if item["id"] == item_id]
-    if len(items) != 1:
+    if len(item) != 1:
         await raise_keyboard_error(callback, "часовой пояс")
         return
     item = item[0]
@@ -164,6 +168,7 @@ dialog = Dialog(
             items="cities",
             on_click=save_city,
         )),
+        MessageInput(func=save_city_from_user, content_types=[ContentType.TEXT]),
         state=Registration.choosing_city,
         getter = get_cities,
 ),
@@ -172,10 +177,10 @@ dialog = Dialog(
         Const("Выберете ваш часовой пояс."),
         Group(
             Select(
-                text=Format("{item[zone]}"),
+                text=Format("{item[time_zone]}"),
                 id="time_zone_select",
                 item_id_getter=lambda item: item["id"],
-                items="zones",
+                items="time_zones",
                 on_click=save_time_zone,
             ),
             width=6,
