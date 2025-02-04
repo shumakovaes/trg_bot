@@ -1,4 +1,5 @@
 aiogram>2
+asyncpg
 aiogram-dialog
 pydantic
 pydantic_settings
