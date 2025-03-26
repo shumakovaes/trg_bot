@@ -14,7 +14,7 @@ from bot.dialogs.profile import user
 dialog = Dialog(
     Window(
         Const("Анкета игрока."),
-        Cancel(Const("Завершить.")),
+        Cancel(Const("Завершить")),
         state=PlayerForm.player_form,
     ),
 )

@@ -12,7 +12,10 @@ from config_reader import config
 from bot.handlers import default_commands
 from bot.dialogs.registration import dialog as registration_dialog
 from bot.dialogs.profile import dialog as profile_dialog
+from bot.dialogs.player_form import dialog as player_form_dialog
+from bot.dialogs.master_form import dialog as master_form_dialog
 from bot.db import requests
+
 
 async def main():
     logging.basicConfig(level=logging.INFO)
@@ -35,13 +38,16 @@ async def main():
     dp.include_routers(default_commands.router)
     dp.include_routers(registration_dialog)
     dp.include_routers(profile_dialog)
+    dp.include_routers(player_form_dialog)
+    dp.include_routers(master_form_dialog)
     dp.include_routers(requests.router)  # Include the router from requests.py; COMMENT THIS STRING TO TEST THE BOT
 
     setup_dialogs(dp)
 
-    async with db_pool() as session: # COMMENT THIS STRING TO TEST THE BOT
+    async with db_pool() as session:  # COMMENT THIS STRING TO TEST THE BOT
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot, skip_updates=True)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
