@@ -9,6 +9,7 @@ from bot.states.general_states import Registration, Profile
 
 router = Router()
 
+# TODO: change description, make in more informative
 @router.message(CommandStart())
 async def start_message(message: Message):
     await message.answer(
@@ -20,8 +21,11 @@ async def start_message(message: Message):
 # TODO: check if profile is already exist
 @router.message(Command("register"))
 async def register_profile(message: Message, dialog_manager: DialogManager):
-    await dialog_manager.start(Registration.typing_nickname, data={"type": "register"})
+    await dialog_manager.start(Registration.typing_nickname, data={"mode": "register"})
 
 @router.message(Command("profile"))
 async def check_profile(message: Message, dialog_manager: DialogManager):
     await dialog_manager.start(Profile.checking_info)
+
+# TODO: add command /about with description of all commands
+# TODO: add notifications when unknown command used, maybe notification about successful operations (like profile update)

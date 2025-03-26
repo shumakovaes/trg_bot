@@ -6,10 +6,11 @@ from aiogram_dialog.widgets.kbd import Button, Row, Column, Back, SwitchTo, Sele
 
 from bot.states.general_states import Registration, Profile, PlayerForm, MasterForm
 
-# TODO: change to database query
-from bot.dialogs.registration import  user
+# TODO: implement database
+user = { "name": "", "age": "", "city": "", "time_zone": "", "role": "", "format": "", "about_info": "" }
 
 # Passing arguments to dialog (GETTERS)
+# TODO: change to database query
 async def get_user(**kwargs):
     return user
 
@@ -39,15 +40,16 @@ dialog = Dialog(
     Window(
         Const("Выберите, что хотите отредактировать."),
 
-        Start(Const("Имя"), state=Registration.typing_nickname, id="edit_nickname", data={"type": "edit"}),
-        Start(Const("Возраст"), state=Registration.typing_age, id="edit_age", data={"type": "edit"}),
-        Start(Const("Город"), state=Registration.choosing_city, id="edit_city", data={"type": "edit"}),
-        Start(Const("Часовой пояс"), state=Registration.choosing_time_zone, id="edit_time_zone", data={"type": "edit"}),
-        Start(Const("Роль"), state=Registration.choosing_role, id="edit_role", data={"type": "edit"}),
-        Start(Const("Формат игры"), state=Registration.choosing_format, id="edit_format", data={"type": "edit"}),
-        Start(Const("О себе"), state=Registration.typing_about_information, id="edit_about_info", data={"type": "edit"}),
+        Start(Const("Имя"), state=Registration.typing_nickname, id="edit_nickname", data={"mode": "edit"}),
+        Start(Const("Возраст"), state=Registration.typing_age, id="edit_age", data={"mode": "edit"}),
+        Start(Const("Город"), state=Registration.choosing_city, id="edit_city", data={"mode": "edit"}),
+        # TODO: ? forbid changing time zone than city is default
+        Start(Const("Часовой пояс"), state=Registration.choosing_time_zone, id="edit_time_zone", data={"mode": "edit"}),
+        Start(Const("Роль"), state=Registration.choosing_role, id="edit_role", data={"mode": "edit"}),
+        Start(Const("Формат игры"), state=Registration.choosing_format, id="edit_format", data={"mode": "edit"}),
+        Start(Const("О себе"), state=Registration.typing_about_information, id="edit_about_info", data={"mode": "edit"}),
 
-        Start(Const("Пройти регистрацию заново"), state=Registration.typing_nickname, id="register_again", data={"type": "register"}),
+        Start(Const("Пройти регистрацию заново"), state=Registration.typing_nickname, id="register_again", data={"mode": "register"}),
         Back(Const("Назад"), id="back_to_checking_info"),
         state=Profile.choosing_what_to_edit,
     )

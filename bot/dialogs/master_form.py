@@ -7,7 +7,7 @@ from aiogram_dialog.widgets.kbd import Button, Row, Column, Back, SwitchTo, Sele
 from bot.states.general_states import Registration, Profile, PlayerForm, MasterForm
 
 # TODO: change to database query
-from bot.dialogs.registration import  user
+from bot.dialogs.profile import user
 
 # TODO: implement player form
 # Master form
