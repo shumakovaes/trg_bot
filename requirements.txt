@@ -10,3 +10,4 @@ alembic
 asyncpg
 python-dotenv
 aioredis
+psycopg2

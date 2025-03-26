@@ -8,3 +8,16 @@ class Registration(StatesGroup):
     choosing_time_zone = State()
     choosing_role = State()
     typing_about_information = State()
+    end_of_dialog = State()
+
+class Profile(StatesGroup):
+    checking_info = State()
+    choosing_what_to_edit = State()
+
+# TODO: Implement player form
+class PlayerForm(StatesGroup):
+    player_form = State()
+
+# TODO: Implement master form
+class MasterForm(StatesGroup):
+    master_form = State()

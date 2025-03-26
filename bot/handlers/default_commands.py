@@ -4,10 +4,8 @@ from aiogram.types import Message
 
 from aiogram_dialog import DialogManager, StartMode
 
-from bot.dialogs.registration import Registration
-
 # from bot.keyboards.kb_start import make_new_form_keyboard
-from bot.states.general_states import Registration
+from bot.states.general_states import Registration, Profile
 
 router = Router()
 
@@ -22,4 +20,8 @@ async def start_message(message: Message):
 # TODO: check if profile is already exist
 @router.message(Command("register"))
 async def register_profile(message: Message, dialog_manager: DialogManager):
-    await dialog_manager.start(Registration.typing_nickname)
+    await dialog_manager.start(Registration.typing_nickname, data={"type": "register"})
+
+@router.message(Command("profile"))
+async def check_profile(message: Message, dialog_manager: DialogManager):
+    await dialog_manager.start(Profile.checking_info)
