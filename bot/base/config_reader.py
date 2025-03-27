@@ -10,7 +10,7 @@ class TelegramConfig(BaseConfig):
     model_config = SettingsConfigDict(env_prefix="tg_")
 
     bot_token: SecretStr
-    # postgres_dsn: SecretStr
+    postgres_dsn: SecretStr
 
 
 config = TelegramConfig()

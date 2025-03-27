@@ -1,20 +1,146 @@
-from sqlalchemy import Column, Integer, BigInteger, String, Text, DateTime
-from sqlalchemy.dialects.postgresql import ENUM
-from sqlalchemy.sql import func
+from typing import List, Optional, Union
 
-from bot.db.base import Base
+from bot.db.base import User, Player, Master, Session
+
+all_roles = ['Игрок', 'Мастер']
+all_formats = ['Онлайн', 'Оффлайн']
+all_systems = ['DnD', 'Pathfinder']
+all_experience_levels = ['Опыт1', 'Опыт2', 'Опыт3']
 
 
-class User(Base):
-    __tablename__ = "users"
+def concat(options: list):
+    option = options[0]
+    for o in options[1:]:
+        option += f', {o}'
+    return option
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    telegram_id = Column(BigInteger, unique=True, nullable=False, index=True)
-    name = Column(String(100), nullable=False)
-    age = Column(Integer, nullable=False)
-    format = Column(ENUM('Оффлайн', 'Онлайн', 'Оффлайн и Онлайн', name='game_format'), nullable=False)
-    city = Column(String(100), nullable=False)
-    time_zone = Column(String(10), nullable=False)
-    role = Column(ENUM('Игрок', 'Мастер', 'Игрок и Мастер', name='user_role'), nullable=False)
-    about_info = Column(Text)
-    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+def get_role(user: User):
+    roles = []
+    for i in range(len(all_roles)):
+        if user.role & 2 ** i:
+            roles.append(all_roles[i])
+    return concat(roles)
+
+
+def get_preferred_systems(user: User):
+    systems = []
+    for i in range(len(all_systems)):
+        if user.role & 2 ** i:
+            systems.append(all_systems[i])
+    return concat(systems)
+
+
+def get_game_format(user: User):
+    formats = []
+    for i in range(len(all_formats)):
+        if user.role & 2 ** i:
+            formats.append(all_formats[i])
+    return concat(formats)
+
+
+class UserModel:
+    def __init__(self, user: User):
+        self.id = user.id
+        self.telegram_id = user.telegram_id
+        self.name = user.name
+        self.age = user.age
+        self.city = user.city
+        self.time_zone = user.time_zone
+        self.role = get_role(user)
+        self.game_format = get_game_format(user)
+        self.preferred_systems = get_preferred_systems(user)
+        self.about_info = user.about_info
+        self.created_at = user.created_at
+        self._player_profile = user.player_profile
+        self._master_profile = user.master_profile
+        self._sessions = user.sessions
+
+    @property
+    def player_profile(self) -> Optional['PlayerModel']:
+        return PlayerModel(self._player_profile) if self._player_profile else None
+
+    @property
+    def master_profile(self) -> Optional['MasterModel']:
+        return MasterModel(self._master_profile) if self._master_profile else None
+
+    def get_user(self) -> User:
+        pass
+
+    @property
+    def sessions(self) -> List['SessionModel']:
+        return [SessionModel(s) for s in self._sessions]
+
+    def __str__(self):
+        return (f"<b>Ваш профиль</b>:\n"
+                f"Имя: <b>{self.name}</b>\n"
+                f"Возраст: <b>{self.age}</b>\n"
+                f"Город: <b>{self.city}</b>\n"
+                f"Часовой пояс: <b>{self.time_zone}</b>\n"
+                f"Роль: <b>{self.role}</b>\n"
+                f"Формат игры: <b>{self.game_format}</b>\n"
+                f"Предпочитаемые системы: <b>{self.preferred_systems}</b>\n"
+                f"О себе: <b>{self.about_info or 'Не указано'}</b>\n")
+
+
+class PlayerModel:
+    def __init__(self, player: Player):
+        self.id = player.id
+        self.experience_level = all_experience_levels[player.experience_level]
+        self.availability = player.availability
+
+        self._user = player.user
+        self._sessions = player.sessions
+
+    @property
+    def user(self) -> UserModel:
+        return UserModel(self._user)
+
+    @property
+    def sessions(self) -> List['SessionModel']:
+        return [SessionModel(s) for s in self._sessions]
+
+
+class MasterModel:
+    def __init__(self, master: Master):
+        self.id = master.id
+        self.master_style = master.master_style
+        self.rating = master.rating
+
+        # Связи
+        self._user = master.user
+        self._sessions = master.sessions
+
+    @property
+    def user(self) -> UserModel:
+        return UserModel(self._user)
+
+    @property
+    def sessions(self) -> List['SessionModel']:
+        return [SessionModel(s) for s in self._sessions]
+
+
+class SessionModel:
+    def __init__(self, session: Session):
+        # Основные поля
+        self.id = session.id
+        self.title = session.title
+        self.description = session.description
+        self.game_system = all_systems[session.game_system]
+        self.date_time = session.date_time
+        self.format = all_formats[session.format]
+        self.status = session.status
+        self.max_players = session.max_players
+        self.looking_for = all_roles[session.looking_for]
+
+        # Связи
+        self._creator = session.creator
+        self._players = session.players
+
+    @property
+    def creator(self) -> UserModel:
+        return UserModel(self._creator)
+
+    @property
+    def players(self) -> List[Union[PlayerModel, UserModel]]:
+        return [PlayerModel(p) for p in self._players]
