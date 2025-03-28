@@ -21,12 +21,12 @@ async def main():
     logging.basicConfig(level=logging.INFO)
 
     # COMMENT THESE STRINGS TO TEST THE BOT
-    engine = create_async_engine(
-        str(config.postgres_dsn.get_secret_value()).replace('postgresql://', 'postgresql+asyncpg://'),
-        future=True,
-        echo=False
-    )
-    db_pool = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+    # engine = create_async_engine(
+    #     str(config.postgres_dsn.get_secret_value()).replace('postgresql://', 'postgresql+asyncpg://'),
+    #     future=True,
+    #     echo=False
+    # )
+    # db_pool = sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     # COMMENT THESE STRINGS TO TEST THE BOT
 
     storage = MemoryStorage()
@@ -40,13 +40,13 @@ async def main():
     dp.include_routers(profile_dialog)
     dp.include_routers(player_form_dialog)
     dp.include_routers(master_form_dialog)
-    dp.include_routers(requests.router)  # Include the router from requests.py; COMMENT THIS STRING TO TEST THE BOT
+    # dp.include_routers(requests.router)  # Include the router from requests.py; COMMENT THIS STRING TO TEST THE BOT
 
     setup_dialogs(dp)
 
-    async with db_pool() as session:  # COMMENT THIS STRING TO TEST THE BOT
-        await bot.delete_webhook(drop_pending_updates=True)
-        await dp.start_polling(bot, skip_updates=True)
+    # async with db_pool() as session:  # COMMENT THIS STRING TO TEST THE BOT
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot, skip_updates=True)
 
 
 if __name__ == "__main__":

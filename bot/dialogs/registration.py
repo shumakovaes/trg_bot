@@ -1,15 +1,14 @@
-from typing import Optional
+import logging
 
 from aiogram.types import CallbackQuery, ContentType, Message
 from aiogram_dialog import Dialog, Window, DialogManager
 from aiogram_dialog.widgets.common import Whenable
 from aiogram_dialog.widgets.input import MessageInput
-from aiogram_dialog.widgets.text import Const, Format, Case, Multi
+from aiogram_dialog.widgets.text import Const, Format, Case, Multi, Jinja
 from aiogram_dialog.widgets.kbd import Button, Row, Column, Start, Select, Cancel, SwitchTo
-from aiogram.fsm.state import State
 
-import logging
-
+from bot.dialogs.general_tools import need_to_display_current_value, go_back_when_edit_mode, switch_state, \
+    raise_keyboard_error, get_item_by_key
 from bot.dialogs.profile import user, get_user_general
 from bot.states.general_states import Registration, PlayerForm, MasterForm
 
@@ -59,19 +58,6 @@ async def get_time_zones(**kwargs):
 
 
 # SELECTORS
-# TODO: display current value, in some cases, when mode = "register"
-def need_to_display_current_value(data: dict, widget: Whenable, manager: DialogManager):
-    return manager.start_data.get("mode") == "edit"
-
-
-def is_edit_mode(data: dict, widget: Whenable, manager: DialogManager):
-    return manager.start_data.get("mode") == "edit"
-
-
-def is_register_mode(data: dict, widget: Whenable, manager: DialogManager):
-    return manager.start_data.get("mode") == "register"
-
-
 def is_user_player(data: dict, widget: Whenable, manager: DialogManager):
     role = user["general"].get("role")
     return role == "Игрок" or role == "Игрок и Мастер"
@@ -80,30 +66,6 @@ def is_user_player(data: dict, widget: Whenable, manager: DialogManager):
 def is_user_master(data: dict, widget: Whenable, manager: DialogManager):
     role = user["general"].get("role")
     return role == "Мастер" or role == "Игрок и Мастер"
-
-
-# RAISING ERRORS
-async def raise_keyboard_error(callback: CallbackQuery, item_type: str):
-    await callback.answer(text="Что-то пошло не так, попробуйте выбрать {} снова.\n"
-                               "Если это не поможет, обратитесь в поддержку.".format(item_type),
-                          show_alert=True)
-
-
-# HELPER FUNCTIONS
-async def switch_state(manager: DialogManager, next_state: dict[str, Optional[State]]):
-    allowed_modes = ["edit", "register"]
-    register_mode = manager.start_data.get("mode")
-
-    if register_mode not in allowed_modes:
-        logging.critical("unexpected register mode: {}".format(register_mode))
-        await manager.done()
-        return
-
-    if not next_state.get(register_mode) is None:
-        await manager.switch_to(next_state.get(register_mode))
-        return
-    await manager.done()
-    return
 
 
 # Saving profile settings (ONCLICK)
@@ -149,13 +111,7 @@ async def save_format(callback: CallbackQuery, button: Button, manager: DialogMa
 
 
 async def save_city(callback: CallbackQuery, button: Button, manager: DialogManager, item_id: str):
-    data = await get_cities()
-    items = data["cities"]
-    item = [item for item in items if item["id"] == item_id]
-    if len(item) != 1:
-        await raise_keyboard_error(callback, "город")
-        return
-    item = item[0]
+    item = await get_item_by_key(get_cities, "cities", "id", item_id, callback, "город", False, False)
 
     user["general"]["city"] = item["city"]
     user["general"]["time_zone"] = item["time_zone"]
@@ -168,14 +124,10 @@ async def save_city_from_user(message: Message, message_input: MessageInput, man
     # TODO: detect time zone automatically for all cities
     user_city = message.text.strip(". \"\'")
 
-    data = await get_cities()
-    items = data["cities"]
     # TODO: detect synonyms to main cites, e. g. Москва - мск
-    item = [item for item in items if item["city"].lower() == user_city.lower()]
-    if len(item) > 1:
-        logging.critical("multiple cities with same name: {}".format(user_city))
-    if len(item) == 1:
-        item = item[0]
+    item = await get_item_by_key(get_cities, "cities", "city", user_city, message, "город", True, True)
+
+    if not item is None:
         user["general"]["city"] = item["city"]
         user["general"]["time_zone"] = item["time_zone"]
 
@@ -190,13 +142,7 @@ async def save_city_from_user(message: Message, message_input: MessageInput, man
 
 
 async def save_time_zone(callback: CallbackQuery, button: Button, manager: DialogManager, item_id: str):
-    data = await get_time_zones()
-    items = data["time_zones"]
-    item = [item for item in items if item["id"] == item_id]
-    if len(item) != 1:
-        await raise_keyboard_error(callback, "часовой пояс")
-        return
-    item = item[0]
+    item = await get_item_by_key(get_time_zones, "time_zones", "id", item_id, callback, "часовой пояс", False, False)
 
     user["general"]["time_zone"] = item["time_zone"]
 
@@ -277,54 +223,52 @@ async def save_about_info(message: Message, message_input: MessageInput, manager
     await switch_state(manager, next_stages)
 
 
-# WIDGETS
-
-go_back_when_edit_mode = Cancel(Const("Назад"), when=is_edit_mode)
-
 # TODO: change phrases, make them more friendly
-# TODO: change Const to Jinja
-# TODO: take information about user from database
 # Registration dialog
 dialog = Dialog(
     # Getting nickname
     Window(
         Const("Введите ваше имя или никнейм."),
-        Multi(Format("\nТекущее значение: {name}"), when=need_to_display_current_value),
-
-        go_back_when_edit_mode,
+        Format("\n<b>Текущее значение</b>: {name}", when=need_to_display_current_value),
 
         MessageInput(func=save_name, content_types=[ContentType.TEXT]),
+
+        go_back_when_edit_mode,
+        parse_mode="HTML",
         state=Registration.typing_nickname,
     ),
     # Getting age
     Window(
         Const("Введите ваш возраст, число от 12 до 99."),
-        Format("\nТекущее значение: {age}", when=need_to_display_current_value),
-
-        go_back_when_edit_mode,
+        Format("\n<b>Текущее значение</b>: {age}", when=need_to_display_current_value),
 
         MessageInput(func=save_age, content_types=[ContentType.TEXT]),
+
+        go_back_when_edit_mode,
+        parse_mode="HTML",
         state=Registration.typing_age,
     ),
     # Getting format
     Window(
-        Const("Выберете удобный для вас формат проведения игр.\n"
-              "При создании игры это настройка будет применена по умолчанию, но вы сможете изменить её при создании сессии."),
-        Format("\nТекущее значение: {format}", when=need_to_display_current_value),
+        Const("Выберете удобный для вас формат проведения игр.\n"),
+        Format("\n<b>Текущее значение</b>: {format}", when=need_to_display_current_value),
 
-        Row(Button(Const("Оффлайн"), id="format_offline", on_click=save_format),
+        Row(
+            Button(Const("Оффлайн"), id="format_offline", on_click=save_format),
             Button(Const("Онлайн"), id="format_online", on_click=save_format)),
-        Button(Const("Оффлайн и Онлайн"), id="format_both", on_click=save_format),
+        Button(Const("Оффлайн и Онлайн"), id="format_both", on_click=save_format
+               ),
 
         go_back_when_edit_mode,
-
+        parse_mode="HTML",
         state=Registration.choosing_format,
     ),
     # Getting city
     Window(
         Const(
-            "Выберите город, в котором живёте. Если его нет в списке, то отправьте его название ответным сообщением."),
-        Format("\nТекущее значение: {city}", when=need_to_display_current_value),
+            "Выберите город, в котором живёте.\nЕсли его нет в списке, то отправьте его название ответным сообщением."),
+        Format("\n<b>Текущее значение</b>: {city}", when=need_to_display_current_value),
+
         Column(Select(
             text=Format("{item[city]}"),
             id="cities_select",
@@ -332,16 +276,19 @@ dialog = Dialog(
             items="cities",
             on_click=save_city,
         )),
-        go_back_when_edit_mode,
         MessageInput(func=save_city_from_user, content_types=[ContentType.TEXT]),
+
+        go_back_when_edit_mode,
+        parse_mode="HTML",
         state=Registration.choosing_city,
         getter=get_cities,
     ),
     # Getting time zone
     Window(
         Const(
-            "Выберете ваш часовой пояс. Если его нет в списке, укажите его в формате UTC. Вводите только знак и цифры, например: -5, 0 или +5:30."),
-        Format("\nТекущее значение: {time_zone}", when=need_to_display_current_value),
+            "Выберете ваш часовой пояс.\nЕсли его нет в списке, укажите его в формате UTC. Вводите только знак и цифры, например: -5, 0 или +5:30."),
+        Format("\n<b>Текущее значение</b>: {time_zone}", when=need_to_display_current_value),
+
         Column(
             Select(
                 text=Format("{item[time_zone]}"),
@@ -351,39 +298,49 @@ dialog = Dialog(
                 on_click=save_time_zone,
             ),
         ),
-        go_back_when_edit_mode,
         MessageInput(func=save_time_zone_from_user, content_types=[ContentType.TEXT]),
+
+        go_back_when_edit_mode,
+        parse_mode="HTML",
         state=Registration.choosing_time_zone,
         getter=get_time_zones,
     ),
     # Getting role
     Window(
         Const("Выберете роль, в которой будете выступать."),
-        Format("\nТекущее значение: {role}", when=need_to_display_current_value),
-        Row(Button(Const("Игрок"), id="role_player", on_click=save_role),
+        Format("\n<b>Текущее значение</b>: {role}", when=need_to_display_current_value),
+
+        Row(
+            Button(Const("Игрок"), id="role_player", on_click=save_role),
             Button(Const("Мастер"), id="role_master", on_click=save_role)),
-        Button(Const("Игрок и Мастер"), id="role_both", on_click=save_role),
+        Button(Const("Игрок и Мастер"), id="role_both", on_click=save_role
+               ),
+
         go_back_when_edit_mode,
+        parse_mode="HTML",
         state=Registration.choosing_role,
     ),
     # Getting about info
     Window(
         Const("Расскажите немного о себе."),
-        Format("\nТекущее значение: {about_info}", when=need_to_display_current_value),
-        go_back_when_edit_mode,
+        Format("\n<b>Текущее значение</b>: {about_info}", when=need_to_display_current_value),
+
         MessageInput(func=save_about_info, content_types=[ContentType.TEXT]),
+
+        go_back_when_edit_mode,
+        parse_mode="HTML",
         state=Registration.typing_about_information,
     ),
     # End of dialog
     Window(
         Const(
             "Вы заполнили анкету! Вы всегда можете посмотреть или отредактировать её, введя команду /profile. Там же вы сможете указать дополнительную информацию, которая поможет мастерам лучше понять ваши интересы и сэкономит вам время при создании игры."),
-        Row(Start(Const("Анкета игрока"), state=PlayerForm.player_form, id="player_form_from_register",
+        Row(Start(Const("Анкета игрока"), state=PlayerForm.checking_info, id="player_form_from_register",
                   when=is_user_player),
-            Start(Const("Анкета мастера"), state=MasterForm.master_form, id="master_form_from_register"),
+            Start(Const("Анкета мастера"), state=MasterForm.checking_info, id="master_form_from_register"),
             when=is_user_master),
         Cancel(Const("Завершить"), id="end_registration"),
         state=Registration.end_of_dialog,
     ),
-    getter=get_user_general
+    getter=get_user_general,
 )

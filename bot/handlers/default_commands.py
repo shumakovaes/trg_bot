@@ -33,12 +33,12 @@ async def check_profile(message: Message, dialog_manager: DialogManager):
 
 @router.message(Command("player"))
 async def check_profile(message: Message, dialog_manager: DialogManager):
-    await dialog_manager.start(PlayerForm.player_form)
+    await dialog_manager.start(PlayerForm.checking_info)
 
 
 @router.message(Command("master"))
 async def check_profile(message: Message, dialog_manager: DialogManager):
-    await dialog_manager.start(MasterForm.master_form)
+    await dialog_manager.start(MasterForm.checking_info)
 
 # TODO: add command /about with description of all commands
 # TODO: add notifications when unknown command used, maybe notification about successful operations (like profile update)

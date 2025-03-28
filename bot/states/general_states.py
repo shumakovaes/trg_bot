@@ -17,11 +17,22 @@ class Profile(StatesGroup):
     choosing_what_to_edit = State()
 
 
-# TODO: Implement player form
 class PlayerForm(StatesGroup):
-    player_form = State()
+    checking_info = State()
+    choosing_what_to_edit = State()
+    choosing_experience = State()
+    choosing_payment = State()
+    choosing_systems = State()
 
 
 # TODO: Implement master form
 class MasterForm(StatesGroup):
-    master_form = State()
+    checking_info = State()
+    choosing_what_to_edit = State()
+    choosing_experience = State()
+    choosing_cost = State()
+    typing_cost = State()
+    typing_place = State()
+    choosing_platform = State()
+    typing_platform = State()
+    typing_requirements = State()
