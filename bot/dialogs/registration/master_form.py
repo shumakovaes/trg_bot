@@ -4,12 +4,13 @@ from aiogram.types import CallbackQuery, ContentType, Message
 from aiogram_dialog import Dialog, Window, DialogManager, ShowMode
 from aiogram_dialog.widgets.common import Whenable
 from aiogram_dialog.widgets.input import MessageInput
-from aiogram_dialog.widgets.text import Const, Format, Multi, List
+from aiogram_dialog.widgets.text import Const, Format, Multi, List, Jinja
 from aiogram_dialog.widgets.kbd import Button, Row, Column, Back, SwitchTo, Select, Group, Cancel, Start
 
 from bot.dialogs.general_tools import need_to_display_current_value, go_back_when_edit_mode, raise_keyboard_error, \
-    switch_state, generate_save_user_experience
-from bot.states.general_states import Registration, Profile, PlayerForm, MasterForm
+    switch_state, generate_save_message_from_user_no_formatting
+from bot.dialogs.registration.registration_tools import generate_save_user_experience
+from bot.states.registration_states import Registration, Profile, PlayerForm, MasterForm
 
 from bot.db.current_requests import user, get_user_master
 
@@ -30,52 +31,43 @@ save_experience_master = generate_save_user_experience("master", MasterForm.choo
 
 
 async def save_cost(callback: CallbackQuery, button: Button, manager: DialogManager):
-    next_stages = {"edit": None, "register": None}
+    next_states = {"edit": None, "register": None}
     if button.widget_id == "cost_free":
-        next_stages = {"edit": None, "register": MasterForm.typing_place}
+        next_states = {"edit": None, "register": MasterForm.typing_place}
         user["master"]["cost"] = "Бесплатно"
     elif button.widget_id == "cost_paid":
-        next_stages = {"edit": MasterForm.typing_cost, "register": MasterForm.typing_cost}
-        user["master"]["cost"] = "Платно"
+        next_states = {"edit": MasterForm.typing_cost, "register": MasterForm.typing_cost}
     else:
         await raise_keyboard_error(callback, "цену")
+        return
 
-    await switch_state(manager, next_stages)
+    await switch_state(manager, next_states)
 
 
-# TODO: generate these types of onclick functions
 async def save_cost_number(message: Message, message_input: MessageInput, manager: DialogManager):
     user["master"]["cost"] = message.text
 
     if is_user_playing_offline(None, None, None):
-        next_stages = {"edit": None, "register": MasterForm.typing_place}
+        next_states = {"edit": None, "register": MasterForm.typing_place}
     else:
-        next_stages = {"edit": None, "register": MasterForm.typing_platform}
-    await switch_state(manager, next_stages)
+        next_states = {"edit": None, "register": MasterForm.typing_platform}
+    await switch_state(manager, next_states)
 
 
 async def save_place(message: Message, message_input: MessageInput, manager: DialogManager):
     user["master"]["place"] = message.text
 
     if is_user_playing_online(None, None, None):
-        next_stages = {"edit": None, "register": MasterForm.typing_platform}
+        next_states = {"edit": None, "register": MasterForm.typing_platform}
     else:
-        next_stages = {"edit": None, "register": MasterForm.typing_requirements}
-    await switch_state(manager, next_stages)
+        next_states = {"edit": None, "register": MasterForm.typing_requirements}
+    await switch_state(manager, next_states)
 
 
-async def save_platform(message: Message, message_input: MessageInput, manager: DialogManager):
-    user["master"]["platform"] = message.text
-
-    next_stages = {"edit": None, "register": MasterForm.typing_requirements}
-    await switch_state(manager, next_stages)
+save_platform = generate_save_message_from_user_no_formatting("master", "platform", {"edit": None, "register": MasterForm.typing_requirements})
 
 
-async def save_requirements(message: Message, message_input: MessageInput, manager: DialogManager):
-    user["master"]["place"] = message.text
-
-    next_stages = {"edit": None, "register": None}
-    await switch_state(manager, next_stages)
+save_requirements = generate_save_message_from_user_no_formatting("master", "requirements", {"edit": None, "register": None})
 
 
 # Master form
@@ -83,31 +75,30 @@ dialog = Dialog(
     # Checking profile
     Window(
         Multi(
-            Format(
+            Jinja(
                 "Это ваша анкета мастера, заполнив её, вы установите значения по умолчанию для ваших игр. Вы сможете использовать их или выбрать другие параметры при создании заявки.\n\n" +
-                "<b>Опыт</b>: {experience}\n" +
-                "<b>Цена</b>: {cost}\n"
+                "<b>Опыт</b>: {{experience}}\n" +
+                "<b>Цена</b>: {{cost}}"
             ),
-            Format(
-                text="<b>Место проведения</b>: {place}\n",
+            Jinja(
+                text="<b>Место проведения</b>: {{place}}",
                 when=is_user_playing_offline
             ),
-            Format(
-                text="<b>Платформа</b>: {platform}\n",
+            Jinja(
+                text="<b>Платформа</b>: {{platform}}",
                 when=is_user_playing_online
 
             ),
-            Format(
-                "<b>Требования к игрокам</b>: {requirements}"
+            Jinja(
+                "<b>Требования к игрокам</b>: {{requirements}}"
             ),
-            sep=""
+            sep='\n'
         ),
 
         SwitchTo(Const("Редактировать анкету"), state=MasterForm.choosing_what_to_edit, id="edit_form_player",
                  show_mode=ShowMode.SEND),
         Cancel(Const("Выйти")),
 
-        parse_mode="HTML",
         state=MasterForm.checking_info,
     ),
     # Editing profile
@@ -129,7 +120,7 @@ dialog = Dialog(
     # Getting experience
     Window(
         Const("Каков ваш опыт в НРИ в качестве мастера?"),
-        Format("\n<b>Текущее значение</b>: {experience}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{experience}}", when=need_to_display_current_value),
 
         Button(Const("Менее 3 месяцев"), id="experience_0_master", on_click=save_experience_master),
         Button(Const("От 3 месяцев до 1 года"), id="experience_1_master", on_click=save_experience_master),
@@ -138,62 +129,56 @@ dialog = Dialog(
         Button(Const("Более 10 лет"), id="experience_4_master", on_click=save_experience_master),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         state=MasterForm.choosing_experience,
     ),
     Window(
         Const("Какие игры вы планируете проводить?"),
-        Format("\n<b>Текущее значение</b>: {cost}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{cost}}", when=need_to_display_current_value),
 
         Button(Const("Бесплатные"), id="cost_free", on_click=save_cost),
         Button(Const("Платные"), id="cost_paid", on_click=save_cost),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         state=MasterForm.choosing_cost,
     ),
     # Getting cost
     Window(
         Const("Сколько вы планируете брать за проведение сессии? Введите ответ в свободной форме"),
-        Format("\n<b>Текущее значение</b>: {cost}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{cost}}", when=need_to_display_current_value),
 
         MessageInput(func=save_cost_number, content_types=[ContentType.TEXT]),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         state=MasterForm.typing_cost,
     ),
     # Getting place
     Window(
         Const("Где вы планируете проводить игры?"),
-        Format("\n<b>Текущее значение</b>: {place}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{place}}", when=need_to_display_current_value),
 
         MessageInput(func=save_place, content_types=[ContentType.TEXT]),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         state=MasterForm.typing_place,
     ),
     # Getting platform
     # TODO: add choice of platform (like roll20 or foundry) and connection way (discord, telegram, etc)
     Window(
         Const("Какую платформу вы будете использовать для проведения игр? Укажите её и способ общения во время игры."),
-        Format("\n<b>Текущее значение</b>: {platform}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{platform}}", when=need_to_display_current_value),
 
         MessageInput(func=save_platform, content_types=[ContentType.TEXT]),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         state=MasterForm.typing_platform,
     ),
     Window(
         Const("Каким требованиям должны удовлетворять игроки, которых вы ищите?"),
-        Format("\n<b>Текущее значение</b>: {requirements}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{requirements}}", when=need_to_display_current_value),
 
         MessageInput(func=save_requirements, content_types=[ContentType.TEXT]),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         state=MasterForm.typing_requirements,
     ),
     getter=get_user_master,

@@ -4,13 +4,14 @@ from typing import Any
 from aiogram.types import CallbackQuery, ContentType, Message
 from aiogram_dialog import Dialog, Window, DialogManager, ShowMode, ChatEvent
 from aiogram_dialog.widgets.input import MessageInput
-from aiogram_dialog.widgets.text import Const, Format, List, Multi
+from aiogram_dialog.widgets.text import Const, Format, List, Multi, Jinja
 from aiogram_dialog.widgets.kbd import Button, Row, Column, Back, SwitchTo, Select, Group, Cancel, Start, Multiselect, \
     ManagedMultiselect, Checkbox
 
 from bot.dialogs.general_tools import need_to_display_current_value, go_back_when_edit_mode, switch_state, \
-    raise_keyboard_error, raise_dialog_data_error, get_item_by_key, generate_save_user_experience
-from bot.states.general_states import PlayerForm
+    raise_keyboard_error, raise_dialog_data_error, get_item_by_key
+from bot.dialogs.registration.registration_tools import generate_save_user_experience
+from bot.states.registration_states import PlayerForm
 
 from bot.db.current_requests import user, get_user_player, get_user_general
 
@@ -21,7 +22,7 @@ async def set_current_systems(start_data: Any, manager: DialogManager):
 
 
 # Passing arguments to the dialog (GETTERS)
-async def get_systems(**kwargs):
+async def get_systems(manager: DialogManager, **kwargs):
     # These are ttrpgs from top of the list of ORR Roll20 report Q3 | 2021, maybe some other systems should be added:
     # Star Wars, Blades in the Dark, Apocalypse World System, Mutants and Masterminds, Shadowrun, Savage Worlds, Vampire: The Masquerade (as separate from World of Darkness category)
     systems = [
@@ -37,7 +38,8 @@ async def get_systems(**kwargs):
         {"system": "GURPS", "id": "system_gurps"},
     ]
     return {
-        "popular_systems": systems
+        "popular_systems": systems,
+        "current_systems": manager.dialog_data["current_systems"],
     }
 
 
@@ -64,8 +66,8 @@ async def save_payment(callback: CallbackQuery, button: Button, manager: DialogM
         return
     user["player"]["payment"] = payment
 
-    next_stages = {"edit": None, "register": PlayerForm.choosing_systems}
-    await switch_state(manager, next_stages)
+    next_states = {"edit": None, "register": PlayerForm.choosing_systems}
+    await switch_state(manager, next_states)
 
 
 async def save_systems_from_user(message: Message, message_input: MessageInput, manager: DialogManager):
@@ -109,14 +111,14 @@ dialog = Dialog(
     # Checking profile
     Window(
         Multi(
-            Format(
+            Jinja(
                 "Это ваша анкета игрока, заполнив её, вы дадите мастерам лучше узнать ваши вкусы и интересы. Этим вы повысите шанс, что вашу заявку примет мастер.\n\n" +
-                "<b>Опыт</b>: {experience}\n" +
-                "<b>Оплата</b>: {payment}\n" +
+                "<b>Опыт</b>: {{experience}}\n" +
+                "<b>Оплата</b>: {{payment}}\n" +
                 "<b>Системы</b>: "
             ),
             List(
-                Format("{item}"),
+                Jinja("{{item}}"),
                 items="systems",
                 sep=", "
             ),
@@ -127,7 +129,6 @@ dialog = Dialog(
                  show_mode=ShowMode.SEND),
         Cancel(Const("Выйти")),
 
-        parse_mode="HTML",
         state=PlayerForm.checking_info,
     ),
     # Editing profile
@@ -147,7 +148,7 @@ dialog = Dialog(
     Window(
         # TODO: ? give user capability to write it in free form
         Const("Каков ваш опыт в НРИ в качестве игрока?"),
-        Format("\n<b>Текущее значение</b>: {payment}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{payment}}", when=need_to_display_current_value),
 
         Button(Const("Менее 3 месяцев"), id="experience_0_player", on_click=save_experience_player),
         Button(Const("От 3 месяцев до 1 года"), id="experience_1_player", on_click=save_experience_player),
@@ -156,13 +157,12 @@ dialog = Dialog(
         Button(Const("Более 10 лет"), id="experience_4_player", on_click=save_experience_player),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         state=PlayerForm.choosing_experience,
     ),
     # Getting payment
     Window(
         Const("Выберите, какие игры вы рассматриваете."),
-        Format("\n<b>Текущее значение</b>: {payment}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{payment}}", when=need_to_display_current_value),
 
         Row(
             Button(Const("Только бесплатные"), id="payment_free", on_click=save_payment),
@@ -171,7 +171,6 @@ dialog = Dialog(
         Button(Const("Бесплатные и платные"), id="payment_both", on_click=save_payment),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         state=PlayerForm.choosing_payment,
     ),
     # # Getting systems
@@ -181,7 +180,7 @@ dialog = Dialog(
         Multi(
             Format("\n<b>Текущее значение</b>: "),
             List(
-                Format("{item}"),
+                Jinja("{{item}}"),
                 items="systems",
                 sep=", "
             ),
@@ -192,7 +191,7 @@ dialog = Dialog(
         # Multi(
         #     Format("\n<b>Добавленные вручную системы</b>: "),
         #     List(
-        #         Format("{item}"),
+        #         Jinja("{{item}}"),
         #         items="current_systems",
         #         sep=", "
         #     ),
@@ -210,7 +209,6 @@ dialog = Dialog(
         MessageInput(func=save_systems_from_user, content_types=[ContentType.TEXT]),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         getter=get_systems,
         state=PlayerForm.choosing_systems,
     ),

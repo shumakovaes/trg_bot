@@ -25,7 +25,6 @@ class PlayerForm(StatesGroup):
     choosing_systems = State()
 
 
-# TODO: Implement master form
 class MasterForm(StatesGroup):
     checking_info = State()
     choosing_what_to_edit = State()

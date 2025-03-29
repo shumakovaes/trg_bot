@@ -1,16 +1,14 @@
-import logging
-
 from aiogram.types import CallbackQuery, ContentType, Message
 from aiogram_dialog import Dialog, Window, DialogManager
 from aiogram_dialog.widgets.common import Whenable
 from aiogram_dialog.widgets.input import MessageInput
-from aiogram_dialog.widgets.text import Const, Format, Case, Multi, Jinja
-from aiogram_dialog.widgets.kbd import Button, Row, Column, Start, Select, Cancel, SwitchTo
+from aiogram_dialog.widgets.text import Const, Format, Jinja
+from aiogram_dialog.widgets.kbd import Button, Row, Column, Start, Select, Cancel
 
 from bot.dialogs.general_tools import need_to_display_current_value, go_back_when_edit_mode, switch_state, \
-    raise_keyboard_error, get_item_by_key
-from bot.dialogs.profile import user, get_user_general
-from bot.states.general_states import Registration, PlayerForm, MasterForm
+    raise_keyboard_error, get_item_by_key, generate_save_message_from_user_no_formatting
+from bot.dialogs.registration.profile import user, get_user_general
+from bot.states.registration_states import Registration, PlayerForm, MasterForm
 
 
 # TODO: display not const, but the most popular cities
@@ -69,11 +67,7 @@ def is_user_master(data: dict, widget: Whenable, manager: DialogManager):
 
 
 # Saving profile settings (ONCLICK)
-async def save_name(message: Message, message_input: MessageInput, manager: DialogManager):
-    user["general"]["name"] = message.text
-
-    next_stages = {"edit": None, "register": Registration.typing_age}
-    await switch_state(manager, next_stages)
+save_name = generate_save_message_from_user_no_formatting("general", "name", {"edit": None, "register": Registration.typing_age})
 
 
 async def save_age(message: Message, message_input: MessageInput, manager: DialogManager):
@@ -89,8 +83,8 @@ async def save_age(message: Message, message_input: MessageInput, manager: Dialo
 
     user["general"]["age"] = int_age
 
-    next_stages = {"edit": None, "register": Registration.choosing_format}
-    await switch_state(manager, next_stages)
+    next_states = {"edit": None, "register": Registration.choosing_format}
+    await switch_state(manager, next_states)
 
 
 async def save_format(callback: CallbackQuery, button: Button, manager: DialogManager):
@@ -106,8 +100,8 @@ async def save_format(callback: CallbackQuery, button: Button, manager: DialogMa
         return
     user["general"]["format"] = session_format
 
-    next_stages = {"edit": None, "register": Registration.choosing_city}
-    await switch_state(manager, next_stages)
+    next_states = {"edit": None, "register": Registration.choosing_city}
+    await switch_state(manager, next_states)
 
 
 async def save_city(callback: CallbackQuery, button: Button, manager: DialogManager, item_id: str):
@@ -116,8 +110,8 @@ async def save_city(callback: CallbackQuery, button: Button, manager: DialogMana
     user["general"]["city"] = item["city"]
     user["general"]["time_zone"] = item["time_zone"]
 
-    next_stages = {"edit": None, "register": Registration.choosing_role}
-    await switch_state(manager, next_stages)
+    next_states = {"edit": None, "register": Registration.choosing_role}
+    await switch_state(manager, next_states)
 
 
 async def save_city_from_user(message: Message, message_input: MessageInput, manager: DialogManager):
@@ -131,14 +125,14 @@ async def save_city_from_user(message: Message, message_input: MessageInput, man
         user["general"]["city"] = item["city"]
         user["general"]["time_zone"] = item["time_zone"]
 
-        next_stages = {"edit": None, "register": Registration.choosing_role}
-        await switch_state(manager, next_stages)
+        next_states = {"edit": None, "register": Registration.choosing_role}
+        await switch_state(manager, next_states)
         return
 
     user["general"]["city"] = user_city.title()
 
-    next_stages = {"edit": Registration.choosing_time_zone, "register": Registration.choosing_time_zone}
-    await switch_state(manager, next_stages)
+    next_states = {"edit": Registration.choosing_time_zone, "register": Registration.choosing_time_zone}
+    await switch_state(manager, next_states)
 
 
 async def save_time_zone(callback: CallbackQuery, button: Button, manager: DialogManager, item_id: str):
@@ -146,8 +140,8 @@ async def save_time_zone(callback: CallbackQuery, button: Button, manager: Dialo
 
     user["general"]["time_zone"] = item["time_zone"]
 
-    next_stages = {"edit": None, "register": Registration.choosing_role}
-    await switch_state(manager, next_stages)
+    next_states = {"edit": None, "register": Registration.choosing_role}
+    await switch_state(manager, next_states)
 
 
 async def save_time_zone_from_user(message: Message, message_input: MessageInput, manager: DialogManager):
@@ -195,8 +189,8 @@ async def save_time_zone_from_user(message: Message, message_input: MessageInput
 
     user["general"]["time_zone"] = formatted_time_zone
 
-    next_stages = {"edit": None, "register": Registration.choosing_role}
-    await switch_state(manager, next_stages)
+    next_states = {"edit": None, "register": Registration.choosing_role}
+    await switch_state(manager, next_states)
 
 
 async def save_role(callback: CallbackQuery, button: Button, manager: DialogManager):
@@ -212,15 +206,11 @@ async def save_role(callback: CallbackQuery, button: Button, manager: DialogMana
         return
     user["general"]["role"] = role
 
-    next_stages = {"edit": None, "register": Registration.typing_about_information}
-    await switch_state(manager, next_stages)
+    next_states = {"edit": None, "register": Registration.typing_about_information}
+    await switch_state(manager, next_states)
 
 
-async def save_about_info(message: Message, message_input: MessageInput, manager: DialogManager):
-    user["general"]["about_info"] = message.text
-
-    next_stages = {"edit": None, "register": Registration.end_of_dialog}
-    await switch_state(manager, next_stages)
+save_about_info = generate_save_message_from_user_no_formatting("general", "about_info", {"edit": None, "register": Registration.end_of_dialog})
 
 
 # TODO: change phrases, make them more friendly
@@ -229,29 +219,27 @@ dialog = Dialog(
     # Getting nickname
     Window(
         Const("Введите ваше имя или никнейм."),
-        Format("\n<b>Текущее значение</b>: {name}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{name}}", when=need_to_display_current_value),
 
         MessageInput(func=save_name, content_types=[ContentType.TEXT]),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         state=Registration.typing_nickname,
     ),
     # Getting age
     Window(
         Const("Введите ваш возраст, число от 12 до 99."),
-        Format("\n<b>Текущее значение</b>: {age}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{age}}", when=need_to_display_current_value),
 
         MessageInput(func=save_age, content_types=[ContentType.TEXT]),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         state=Registration.typing_age,
     ),
     # Getting format
     Window(
         Const("Выберете удобный для вас формат проведения игр.\n"),
-        Format("\n<b>Текущее значение</b>: {format}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{format}}", when=need_to_display_current_value),
 
         Row(
             Button(Const("Оффлайн"), id="format_offline", on_click=save_format),
@@ -260,14 +248,13 @@ dialog = Dialog(
                ),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         state=Registration.choosing_format,
     ),
     # Getting city
     Window(
         Const(
             "Выберите город, в котором живёте.\nЕсли его нет в списке, то отправьте его название ответным сообщением."),
-        Format("\n<b>Текущее значение</b>: {city}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{city}}", when=need_to_display_current_value),
 
         Column(Select(
             text=Format("{item[city]}"),
@@ -279,7 +266,6 @@ dialog = Dialog(
         MessageInput(func=save_city_from_user, content_types=[ContentType.TEXT]),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         state=Registration.choosing_city,
         getter=get_cities,
     ),
@@ -287,11 +273,11 @@ dialog = Dialog(
     Window(
         Const(
             "Выберете ваш часовой пояс.\nЕсли его нет в списке, укажите его в формате UTC. Вводите только знак и цифры, например: -5, 0 или +5:30."),
-        Format("\n<b>Текущее значение</b>: {time_zone}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{time_zone}}", when=need_to_display_current_value),
 
         Column(
             Select(
-                text=Format("{item[time_zone]}"),
+                text=Jinja("{item[time_zone]}"),
                 id="time_zone_select",
                 item_id_getter=lambda item: item["id"],
                 items="time_zones",
@@ -301,14 +287,13 @@ dialog = Dialog(
         MessageInput(func=save_time_zone_from_user, content_types=[ContentType.TEXT]),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         state=Registration.choosing_time_zone,
         getter=get_time_zones,
     ),
     # Getting role
     Window(
         Const("Выберете роль, в которой будете выступать."),
-        Format("\n<b>Текущее значение</b>: {role}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{role}}", when=need_to_display_current_value),
 
         Row(
             Button(Const("Игрок"), id="role_player", on_click=save_role),
@@ -317,18 +302,16 @@ dialog = Dialog(
                ),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         state=Registration.choosing_role,
     ),
     # Getting about info
     Window(
         Const("Расскажите немного о себе."),
-        Format("\n<b>Текущее значение</b>: {about_info}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{about_info}}", when=need_to_display_current_value),
 
         MessageInput(func=save_about_info, content_types=[ContentType.TEXT]),
 
         go_back_when_edit_mode,
-        parse_mode="HTML",
         state=Registration.typing_about_information,
     ),
     # End of dialog

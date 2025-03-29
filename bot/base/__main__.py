@@ -2,19 +2,19 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher, F
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram_dialog import setup_dialogs
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
 
+from bot.handlers.default_commands import set_main_menu
 from config_reader import config
 
 from bot.handlers import default_commands
-from bot.dialogs.registration import dialog as registration_dialog
-from bot.dialogs.profile import dialog as profile_dialog
-from bot.dialogs.player_form import dialog as player_form_dialog
-from bot.dialogs.master_form import dialog as master_form_dialog
-from bot.db import requests
+from bot.dialogs.registration.registration import dialog as registration_dialog
+from bot.dialogs.registration.profile import dialog as profile_dialog
+from bot.dialogs.registration.player_form import dialog as player_form_dialog
+from bot.dialogs.registration.master_form import dialog as master_form_dialog
 
 
 async def main():
@@ -30,7 +30,15 @@ async def main():
     # COMMENT THESE STRINGS TO TEST THE BOT
 
     storage = MemoryStorage()
-    bot = Bot(token=config.bot_token.get_secret_value())
+    bot = Bot(
+        token=config.bot_token.get_secret_value(),
+        default = DefaultBotProperties(
+            parse_mode=ParseMode.HTML,
+            disable_notification=True,
+            link_preview_is_disabled=True,
+        )
+    )
+    await set_main_menu(bot)
     dp = Dispatcher(storage=storage)
 
     dp.message.filter(F.chat.type == "private")
