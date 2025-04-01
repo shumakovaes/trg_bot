@@ -94,6 +94,7 @@ go_back_when_edit_mode = Cancel(Const("Назад"), when=is_edit_mode)
 
 
 # ONCLICK GENERATORS
+# TODO: ? add symbols limit
 def generate_save_message_from_user_no_formatting(field: str, parameter: str, next_states: dict[str, Optional[State]]):
     async def save_message_from_user_no_formatting(message: Message, message_input: MessageInput, manager: DialogManager):
         user[field][parameter] = message.text

@@ -77,8 +77,8 @@ async def save_age(message: Message, message_input: MessageInput, manager: Dialo
         return
 
     int_age = int(str_age)
-    if int_age > 99 or int_age < 12:
-        await message.answer("Чтобы пользоваться ботом, вы должны быть старше 12 лет.")
+    if int_age > 99 or int_age < 14:
+        await message.answer("Чтобы пользоваться ботом, вы должны быть старше 14 лет.")
         return
 
     user["general"]["age"] = int_age
@@ -215,7 +215,7 @@ save_about_info = generate_save_message_from_user_no_formatting("general", "abou
 
 # TODO: change phrases, make them more friendly
 # Registration dialog
-dialog = Dialog(
+registration_dialog = Dialog(
     # Getting nickname
     Window(
         Const("Введите ваше имя или никнейм."),
@@ -228,7 +228,7 @@ dialog = Dialog(
     ),
     # Getting age
     Window(
-        Const("Введите ваш возраст, число от 12 до 99."),
+        Const("Введите ваш возраст, число от 14 до 99."),
         Jinja("\n<b>Текущее значение</b>: {{age}}", when=need_to_display_current_value),
 
         MessageInput(func=save_age, content_types=[ContentType.TEXT]),
@@ -277,7 +277,7 @@ dialog = Dialog(
 
         Column(
             Select(
-                text=Jinja("{item[time_zone]}"),
+                text=Jinja("{{item[time_zone]}}"),
                 id="time_zone_select",
                 item_id_getter=lambda item: item["id"],
                 items="time_zones",

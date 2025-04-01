@@ -9,7 +9,7 @@ from bot.states.registration_states import Registration, Profile, PlayerForm, Ma
 from bot.db.current_requests import user, get_user_general
 
 # Profile dialog
-dialog = Dialog(
+profile_dialog = Dialog(
     # Checking profile
     Window(
         Jinja(

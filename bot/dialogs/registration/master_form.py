@@ -70,9 +70,12 @@ save_platform = generate_save_message_from_user_no_formatting("master", "platfor
 save_requirements = generate_save_message_from_user_no_formatting("master", "requirements", {"edit": None, "register": None})
 
 
+# TODO: add ability to skip some fields
+# TODO: add time field
+# TODO: add ability to clear some fields
 # Master form
-dialog = Dialog(
-    # Checking profile
+master_form_dialog = Dialog(
+    # Checking form
     Window(
         Multi(
             Jinja(
@@ -90,6 +93,7 @@ dialog = Dialog(
 
             ),
             Jinja(
+                # "<b>Время проведения</b>: {{time}}\n" +
                 "<b>Требования к игрокам</b>: {{requirements}}"
             ),
             sep='\n'
@@ -101,7 +105,7 @@ dialog = Dialog(
 
         state=MasterForm.checking_info,
     ),
-    # Editing profile
+    # Editing form
     Window(
         Const("Выберите, что хотите отредактировать."),
 
@@ -153,7 +157,7 @@ dialog = Dialog(
     ),
     # Getting place
     Window(
-        Const("Где вы планируете проводить игры?"),
+        Const("Где вы планируете проводить игры?\nПожалуйста, не приглашайте игроков к себе домой, это может быть опасно, сессии нужно проводить в публичных местах.\nТакже не стоит указывать точный адрес, эта информация будет доступна всем пользователям бота. Лучше всего указать район."),
         Jinja("\n<b>Текущее значение</b>: {{place}}", when=need_to_display_current_value),
 
         MessageInput(func=save_place, content_types=[ContentType.TEXT]),

@@ -11,10 +11,11 @@ from bot.handlers.default_commands import set_main_menu
 from config_reader import config
 
 from bot.handlers import default_commands
-from bot.dialogs.registration.registration import dialog as registration_dialog
-from bot.dialogs.registration.profile import dialog as profile_dialog
-from bot.dialogs.registration.player_form import dialog as player_form_dialog
-from bot.dialogs.registration.master_form import dialog as master_form_dialog
+from bot.dialogs.registration.registration import registration_dialog
+from bot.dialogs.registration.profile import profile_dialog
+from bot.dialogs.registration.player_form import player_form_dialog
+from bot.dialogs.registration.master_form import master_form_dialog
+from bot.dialogs.games.all_games import all_games_dialog
 
 
 async def main():
@@ -48,6 +49,7 @@ async def main():
     dp.include_routers(profile_dialog)
     dp.include_routers(player_form_dialog)
     dp.include_routers(master_form_dialog)
+    dp.include_routers(all_games_dialog)
     # dp.include_routers(requests.router)  # Include the router from requests.py; COMMENT THIS STRING TO TEST THE BOT
 
     setup_dialogs(dp)

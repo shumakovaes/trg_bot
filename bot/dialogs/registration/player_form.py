@@ -22,10 +22,10 @@ async def set_current_systems(start_data: Any, manager: DialogManager):
 
 
 # Passing arguments to the dialog (GETTERS)
-async def get_systems(manager: DialogManager, **kwargs):
+async def get_systems(dialog_manager: DialogManager, **kwargs):
     # These are ttrpgs from top of the list of ORR Roll20 report Q3 | 2021, maybe some other systems should be added:
     # Star Wars, Blades in the Dark, Apocalypse World System, Mutants and Masterminds, Shadowrun, Savage Worlds, Vampire: The Masquerade (as separate from World of Darkness category)
-    systems = [
+    popular_systems = [
         {"system": "D&D", "id": "system_dnd"},
         {"system": "Зов Ктулху", "id": "system_call_of_cthulhu"},
         {"system": "Pathfinder", "id": "system_pathfinder"},
@@ -38,14 +38,8 @@ async def get_systems(manager: DialogManager, **kwargs):
         {"system": "GURPS", "id": "system_gurps"},
     ]
     return {
-        "popular_systems": systems,
-        "current_systems": manager.dialog_data["current_systems"],
-    }
-
-
-async def get_current_systems(dialog_manager: DialogManager, **kwargs):
-    return {
-        "current_systems": dialog_manager.dialog_data["current_systems"]
+        "current_systems": dialog_manager.dialog_data.get("current_systems", []),
+        "popular_systems": popular_systems,
     }
 
 
@@ -107,7 +101,7 @@ async def save_systems_and_exit(callback: CallbackQuery, button: Button, manager
 
 
 # Player form
-dialog = Dialog(
+player_form_dialog = Dialog(
     # Checking profile
     Window(
         Multi(
@@ -188,15 +182,15 @@ dialog = Dialog(
             when=need_to_display_current_value,
         ),
         # TODO: fix this
-        # Multi(
-        #     Format("\n<b>Добавленные вручную системы</b>: "),
-        #     List(
-        #         Jinja("{{item}}"),
-        #         items="current_systems",
-        #         sep=", "
-        #     ),
-        #     sep="",
-        # ),
+        Multi(
+            Format("\n<b>Добавленные вручную системы</b>: "),
+            List(
+                Jinja("{{item}}"),
+                items="current_systems",
+                sep=", "
+            ),
+            sep="",
+        ),
 
         Column(Multiselect(
             checked_text=Format("✓ {item[system]}"),
