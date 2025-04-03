@@ -79,10 +79,12 @@ def get_game_by_id(game_id: str):
 # ONCLICK GENERATORS
 def generate_check_game(rights: str):
     async def check_game(message: Message, message_input: MessageInput, manager: DialogManager):
-        str_index = message.text.strip()
+        str_index = message.text.strip(" .;'\"")
         if str_index is None or not str_index.isdigit():
             await message.answer("Вам необходимо ввести число.")
             return
         index = int(str_index)
 
-        await manager.start(GameInspection.checking_game, data={"game_id":user[rights][index], "rights": rights})
+        await manager.start(GameInspection.checking_game, data={"game_id": user[rights]["games"][index - 1], "rights": rights})
+
+    return check_game

@@ -6,11 +6,11 @@ from aiogram_dialog.widgets.text import Const, Format, Jinja, List
 from aiogram_dialog.widgets.kbd import Button, Row, Column, Start, Select, Cancel, SwitchTo, Group, PrevPage, \
     CurrentPage, NextPage
 
-from bot.db.current_requests import get_user_player, get_user_master
+from bot.db.current_requests import get_user_player, get_user_master, get_player_games, get_master_games
 from bot.dialogs.games.games_tools import games_list, games_navigation, generate_check_game
 from bot.states.games_states import AllGames, GameInspection
 
-# Choosing games dialog
+# Choosing game dialog
 all_games_dialog = Dialog(
     Window(
         Const("Здесь вы можете просмотреть и отредактировать все созданные вами игры, а также отслеживать статус поданных заявок на игру"),
@@ -29,7 +29,7 @@ all_games_dialog = Dialog(
 
         games_navigation,
         SwitchTo(text=Const("Назад"), state=AllGames.checking_games, id="back_to_checking_games_from_player"),
-        getter=get_user_player,
+        getter=get_player_games,
         state=AllGames.checking_player_games,
     ),
     Window(
@@ -40,7 +40,7 @@ all_games_dialog = Dialog(
 
         games_navigation,
         SwitchTo(text=Const("Назад"), state=AllGames.checking_games, id="back_to_checking_games_from_master"),
-        getter=get_user_master,
+        getter=get_master_games,
         state=AllGames.checking_master_games,
     ),
 )

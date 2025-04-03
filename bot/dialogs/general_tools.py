@@ -8,6 +8,7 @@ from aiogram_dialog.widgets.common import Whenable
 from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Cancel, Button
 from aiogram_dialog.widgets.text import Const
+from typing_extensions import Any
 
 from bot.db.current_requests import user
 
@@ -111,3 +112,9 @@ def generate_save_message_from_user_formatting(field: str, parameter: str, next_
         await switch_state(manager, next_states)
 
     return save_message_from_user_formatting
+
+
+# ON START FUNCTIONS
+async def copy_start_data_to_dialog_data(data: dict[str, Any], dialog_manager: DialogManager):
+    for key, value in data.items():
+        dialog_manager.dialog_data[key] = value

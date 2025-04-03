@@ -8,14 +8,17 @@ from aiogram_dialog.widgets.kbd import Button, Row, Column, Start, Select, Cance
 
 from bot.db.current_requests import get_user_player, get_user_master
 from bot.dialogs.games.games_tools import games_list, games_navigation, generate_check_game, \
-    generate_game_description_by_id
+    generate_game_description_by_id, get_game_by_id
+from bot.dialogs.general_tools import copy_start_data_to_dialog_data
 from bot.states.games_states import AllGames, GameInspection
 
 # Registration dialog
-dialog = Dialog(
+game_inspection_dialog = Dialog(
     Window(
-        generate_game_description_by_id("{start_data}"),
+        # generate_game_description_by_id(),
+        Const("Игра."),
         Cancel(Const("Назад")),
         state=GameInspection.checking_game,
     ),
+    # on_start=copy_start_data_to_dialog_data,
 )

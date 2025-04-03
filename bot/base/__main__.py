@@ -16,6 +16,13 @@ from bot.dialogs.registration.profile import profile_dialog
 from bot.dialogs.registration.player_form import player_form_dialog
 from bot.dialogs.registration.master_form import master_form_dialog
 from bot.dialogs.games.all_games import all_games_dialog
+from bot.dialogs.games.game_inspection import game_inspection_dialog
+
+
+def get_all_dialogs():
+    all_dialogs = [registration_dialog, profile_dialog, player_form_dialog, master_form_dialog, all_games_dialog,
+                   game_inspection_dialog]
+    return all_dialogs
 
 
 async def main():
@@ -33,7 +40,7 @@ async def main():
     storage = MemoryStorage()
     bot = Bot(
         token=config.bot_token.get_secret_value(),
-        default = DefaultBotProperties(
+        default=DefaultBotProperties(
             parse_mode=ParseMode.HTML,
             disable_notification=True,
             link_preview_is_disabled=True,
@@ -45,11 +52,10 @@ async def main():
     dp.message.filter(F.chat.type == "private")
 
     dp.include_routers(default_commands.router)
-    dp.include_routers(registration_dialog)
-    dp.include_routers(profile_dialog)
-    dp.include_routers(player_form_dialog)
-    dp.include_routers(master_form_dialog)
-    dp.include_routers(all_games_dialog)
+    all_dialogs = get_all_dialogs();
+
+    for dialog in all_dialogs:
+        dp.include_routers(dialog)
     # dp.include_routers(requests.router)  # Include the router from requests.py; COMMENT THIS STRING TO TEST THE BOT
 
     setup_dialogs(dp)

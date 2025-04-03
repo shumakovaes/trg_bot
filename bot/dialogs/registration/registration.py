@@ -277,7 +277,7 @@ registration_dialog = Dialog(
 
         Column(
             Select(
-                text=Jinja("{{item[time_zone]}}"),
+                text=Format("{item[time_zone]}"),
                 id="time_zone_select",
                 item_id_getter=lambda item: item["id"],
                 items="time_zones",
