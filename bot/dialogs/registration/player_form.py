@@ -156,7 +156,7 @@ player_form_dialog = Dialog(
     ),
     # Getting payment
     Window(
-        Const("Выберите, какие игры вы рассматриваете."),
+        Const("Какие игры вы рассматриваете?"),
         Jinja("\n<b>Текущее значение</b>: {{payment}}", when=need_to_display_current_value),
 
         Row(

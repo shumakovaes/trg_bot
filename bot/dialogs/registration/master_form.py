@@ -37,6 +37,7 @@ async def save_cost(callback: CallbackQuery, button: Button, dialog_manager: Dia
         next_states = {"edit": None, "register": MasterForm.typing_place}
         user["master"]["cost"] = "Бесплатно"
     elif button.widget_id == "cost_paid":
+        user["master"]["cost"] = "Платно"
         next_states = {"edit": MasterForm.typing_cost, "register": MasterForm.typing_cost}
     else:
         await raise_keyboard_error(callback, "цену")
@@ -46,7 +47,7 @@ async def save_cost(callback: CallbackQuery, button: Button, dialog_manager: Dia
 
 
 async def save_cost_number(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
-    user["master"]["cost"] = message.text
+    user["master"]["cost"] = user["master"]["cost"] + ". " + message.text
 
     if is_user_playing_offline(None, None, None):
         next_states = {"edit": None, "register": MasterForm.typing_place}

@@ -84,7 +84,7 @@ async def get_item_by_key(data: dict[str, Any], items_key: str, key: str, value:
 
 
 # SELECTORS
-# TODO: display current value, in some cases, when mode = "register"
+# TODO: display current value, in some cases, when mode = "register" (add mode "re-register")
 def need_to_display_current_value(data: dict, widget: Whenable, dialog_manager: DialogManager):
     return dialog_manager.start_data.get("mode") == "edit"
 

@@ -2,14 +2,14 @@ import logging
 from typing import Optional
 
 from aiogram.fsm.state import State
-from aiogram.types import Message
+from aiogram.types import Message, Game
 from aiogram_dialog import DialogManager
 from aiogram_dialog.widgets.common import Whenable
 from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Group, Row, PrevPage, CurrentPage, NextPage
 from aiogram_dialog.widgets.text import List, Format, Const, Multi, Jinja
 
-from bot.db.current_requests import user, games
+from bot.db.current_requests import user, games, default_game
 from bot.dialogs.general_tools import switch_state
 from bot.states.games_states import GameCreation, GameInspection
 
@@ -71,10 +71,8 @@ def generate_game_description() -> Multi:
     return game_description
 
 
-
-# GETTERS
-async def get_game_by_id_in_start_data(dialog_manager: DialogManager, **kwargs):
-    game_id = dialog_manager.start_data.get("game_id")
+# HELPER FUNCTION
+async def get_game_by_id(dialog_manager: DialogManager, game_id: Optional[str]):
     if game_id is None:
         logging.critical("cannot find game id in start data")
         await dialog_manager.done()
@@ -88,6 +86,20 @@ async def get_game_by_id_in_start_data(dialog_manager: DialogManager, **kwargs):
 
     return current_game
 
+
+# GETTERS
+async def get_game_by_id_in_start_data(dialog_manager: DialogManager, **kwargs):
+    game_id = dialog_manager.start_data.get("game_id")
+    current_game = await get_game_by_id(dialog_manager, game_id)
+
+    return current_game
+
+
+async def get_game_by_id_in_dialog_data(dialog_manager: DialogManager, **kwargs):
+    game_id = dialog_manager.dialog_data.get("game_id")
+    current_game = await get_game_by_id(dialog_manager, game_id)
+
+    return current_game
 
 
 # ONCLICK GENERATORS
@@ -104,9 +116,16 @@ def generate_check_game(rights: str):
     return check_game
 
 
-def generate_save_message_from_user_no_formatting_game(field: str, parameter: str, next_states: dict[str, Optional[State]]):
+def generate_save_message_from_user_no_formatting_game(parameter: str, next_states: dict[str, Optional[State]]):
     async def save_message_from_user_no_formatting(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
-        games[field][parameter] = message.text
+        game_id = dialog_manager.dialog_data.get("game_id")
+        if game_id is None:
+            logging.critical("cannot find game id in start data")
+            await message.answer(text="Что-то пошло не так, обратитесь в поддержку.")
+            await dialog_manager.done()
+            return
+
+        games[game_id][parameter] = message.text
 
         await switch_state(dialog_manager, next_states)
 
