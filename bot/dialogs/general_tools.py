@@ -1,4 +1,5 @@
 import logging
+import random
 from typing import Optional
 
 from aiogram.fsm.state import State
@@ -29,7 +30,7 @@ async def raise_keyboard_error(event: CallbackQuery | Message, item_type: str):
 
 
 # Raise error, when parameter is missing in dialog data
-async def raise_dialog_data_error(manager: DialogManager, parameter: str, event: Message | CallbackQuery):
+async def raise_dialog_data_error(dialog_manager: DialogManager, parameter: str, event: Message | CallbackQuery):
     logging.critical("missing {} in dialog data".format(parameter))
 
     if type(event) == Message:
@@ -37,31 +38,37 @@ async def raise_dialog_data_error(manager: DialogManager, parameter: str, event:
     else:
         await event.answer(text="Что-то пошло не так, обратитесь в поддержку.", show_alert=True)
 
-    await manager.done()
+    await dialog_manager.done()
 
 
 # HELPER FUNCTIONS
 # Changes state differently in register and edit mode
-async def switch_state(manager: DialogManager, next_state: dict[str, Optional[State]]):
+async def switch_state(dialog_manager: DialogManager, next_state: dict[str, Optional[State]]):
     allowed_modes = ["edit", "register"]
-    register_mode = manager.start_data.get("mode")
+    register_mode = dialog_manager.start_data.get("mode")
 
     if register_mode not in allowed_modes:
         logging.critical("unexpected register mode: {}".format(register_mode))
-        await manager.done()
+        await dialog_manager.done()
         return
 
     if not next_state.get(register_mode) is None:
-        await manager.switch_to(next_state.get(register_mode))
+        await dialog_manager.switch_to(next_state.get(register_mode))
         return
-    await manager.done()
+    await dialog_manager.done()
     return
 
 
+async def generate_random_id():
+    max_id = 1000000
+    random_id = str(random.randint(0, max_id - 1))
+
+    return "id_" + '0' * (6 - len(random_id)) + random_id
+
+
 # Finds item with given value in data from getter
-async def get_item_by_key(getter, items_key: str, key: str, value: str, event: CallbackQuery | Message,
+async def get_item_by_key(data: dict[str, Any], items_key: str, key: str, value: str, event: CallbackQuery | Message,
                           error_message: str, allowed_zero_items: bool = False, find_lower: bool = False):
-    data = await getter()
     items = data[items_key]
     if find_lower:
         item = [item for item in items if item.get(key).lower() == value.lower()]
@@ -78,16 +85,16 @@ async def get_item_by_key(getter, items_key: str, key: str, value: str, event: C
 
 # SELECTORS
 # TODO: display current value, in some cases, when mode = "register"
-def need_to_display_current_value(data: dict, widget: Whenable, manager: DialogManager):
-    return manager.start_data.get("mode") == "edit"
+def need_to_display_current_value(data: dict, widget: Whenable, dialog_manager: DialogManager):
+    return dialog_manager.start_data.get("mode") == "edit"
 
 
-def is_edit_mode(data: dict, widget: Whenable, manager: DialogManager):
-    return manager.start_data.get("mode") == "edit"
+def is_edit_mode(data: dict, widget: Whenable, dialog_manager: DialogManager):
+    return dialog_manager.start_data.get("mode") == "edit"
 
 
-def is_register_mode(data: dict, widget: Whenable, manager: DialogManager):
-    return manager.start_data.get("mode") == "register"
+def is_register_mode(data: dict, widget: Whenable, dialog_manager: DialogManager):
+    return dialog_manager.start_data.get("mode") == "register"
 
 
 # WIDGETS
@@ -96,20 +103,13 @@ go_back_when_edit_mode = Cancel(Const("Назад"), when=is_edit_mode)
 
 # ONCLICK GENERATORS
 # TODO: ? add symbols limit
-def generate_save_message_from_user_no_formatting(field: str, parameter: str, next_states: dict[str, Optional[State]]):
-    async def save_message_from_user_no_formatting(message: Message, message_input: MessageInput, manager: DialogManager):
-        user[field][parameter] = message.text
-
-        await switch_state(manager, next_states)
-
-    return save_message_from_user_no_formatting
 
 
 def generate_save_message_from_user_formatting(field: str, parameter: str, next_states: dict[str, Optional[State]]):
-    async def save_message_from_user_formatting(message: Message, message_input: MessageInput, manager: DialogManager):
+    async def save_message_from_user_formatting(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
         user[field][parameter] = message.html_text
 
-        await switch_state(manager, next_states)
+        await switch_state(dialog_manager, next_states)
 
     return save_message_from_user_formatting
 

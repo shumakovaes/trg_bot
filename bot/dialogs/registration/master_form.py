@@ -8,20 +8,21 @@ from aiogram_dialog.widgets.text import Const, Format, Multi, List, Jinja
 from aiogram_dialog.widgets.kbd import Button, Row, Column, Back, SwitchTo, Select, Group, Cancel, Start
 
 from bot.dialogs.general_tools import need_to_display_current_value, go_back_when_edit_mode, raise_keyboard_error, \
-    switch_state, generate_save_message_from_user_no_formatting
-from bot.dialogs.registration.registration_tools import generate_save_user_experience
+    switch_state
+from bot.dialogs.registration.registration_tools import generate_save_user_experience, \
+    generate_save_message_from_user_no_formatting_user
 from bot.states.registration_states import Registration, Profile, PlayerForm, MasterForm
 
 from bot.db.current_requests import user, get_user_master
 
 
 # SELECTORS
-def is_user_playing_online(data: Optional[dict], widget: Optional[Whenable], manager: Optional[DialogManager]):
+def is_user_playing_online(data: Optional[dict], widget: Optional[Whenable], dialog_manager: Optional[DialogManager]):
     role = user["general"].get("format")
     return role == "Онлайн" or role == "Оффлайн и Онлайн"
 
 
-def is_user_playing_offline(data: Optional[dict], widget: Optional[Whenable], manager: Optional[DialogManager]):
+def is_user_playing_offline(data: Optional[dict], widget: Optional[Whenable], dialog_manager: Optional[DialogManager]):
     role = user["general"].get("format")
     return role == "Оффлайн" or role == "Оффлайн и Онлайн"
 
@@ -30,7 +31,7 @@ def is_user_playing_offline(data: Optional[dict], widget: Optional[Whenable], ma
 save_experience_master = generate_save_user_experience("master", MasterForm.choosing_cost)
 
 
-async def save_cost(callback: CallbackQuery, button: Button, manager: DialogManager):
+async def save_cost(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
     next_states = {"edit": None, "register": None}
     if button.widget_id == "cost_free":
         next_states = {"edit": None, "register": MasterForm.typing_place}
@@ -41,33 +42,33 @@ async def save_cost(callback: CallbackQuery, button: Button, manager: DialogMana
         await raise_keyboard_error(callback, "цену")
         return
 
-    await switch_state(manager, next_states)
+    await switch_state(dialog_manager, next_states)
 
 
-async def save_cost_number(message: Message, message_input: MessageInput, manager: DialogManager):
+async def save_cost_number(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
     user["master"]["cost"] = message.text
 
     if is_user_playing_offline(None, None, None):
         next_states = {"edit": None, "register": MasterForm.typing_place}
     else:
         next_states = {"edit": None, "register": MasterForm.typing_platform}
-    await switch_state(manager, next_states)
+    await switch_state(dialog_manager, next_states)
 
 
-async def save_place(message: Message, message_input: MessageInput, manager: DialogManager):
+async def save_place(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
     user["master"]["place"] = message.text
 
     if is_user_playing_online(None, None, None):
         next_states = {"edit": None, "register": MasterForm.typing_platform}
     else:
         next_states = {"edit": None, "register": MasterForm.typing_requirements}
-    await switch_state(manager, next_states)
+    await switch_state(dialog_manager, next_states)
 
 
-save_platform = generate_save_message_from_user_no_formatting("master", "platform", {"edit": None, "register": MasterForm.typing_requirements})
+save_platform = generate_save_message_from_user_no_formatting_user("master", "platform", {"edit": None, "register": MasterForm.typing_requirements})
 
 
-save_requirements = generate_save_message_from_user_no_formatting("master", "requirements", {"edit": None, "register": None})
+save_requirements = generate_save_message_from_user_no_formatting_user("master", "requirements", {"edit": None, "register": None})
 
 
 # TODO: add ability to skip some fields

@@ -1,5 +1,7 @@
+import logging
 from typing import Optional
 
+from aiogram.fsm.state import State
 from aiogram.types import Message
 from aiogram_dialog import DialogManager
 from aiogram_dialog.widgets.common import Whenable
@@ -8,6 +10,7 @@ from aiogram_dialog.widgets.kbd import Group, Row, PrevPage, CurrentPage, NextPa
 from aiogram_dialog.widgets.text import List, Format, Const, Multi, Jinja
 
 from bot.db.current_requests import user, games
+from bot.dialogs.general_tools import switch_state
 from bot.states.games_states import GameCreation, GameInspection
 
 # WIDGETS
@@ -28,14 +31,13 @@ games_navigation = Group(
 )
 
 
-def generate_game_description_by_id(game_id: str):
-    def is_game_online(data: Optional[dict], widget: Optional[Whenable], manager: Optional[DialogManager]):
-        game_format = games[game_id]["format"].get("format")
+def generate_game_description() -> Multi:
+    game_format = Format("{format}").text
+    def is_game_online(data: Optional[dict], widget: Optional[Whenable], dialog_manager: Optional[DialogManager]):
         return game_format == "Онлайн"
 
 
-    def is_game_offline(data: Optional[dict], widget: Optional[Whenable], manager: Optional[DialogManager]):
-        game_format = games[game_id]["format"].get("format")
+    def is_game_offline(data: Optional[dict], widget: Optional[Whenable], dialog_manager: Optional[DialogManager]):
         return game_format == "Оффлайн"
 
 
@@ -58,9 +60,7 @@ def generate_game_description_by_id(game_id: str):
         ),
         Jinja(
             "<b>Тип</b>: {{type}}\n" +
-            "<b>Система</b>: {{system}}\n" +
-            "<b>Редакция</b>: {{edition}}\n" +
-            "<b>Сеттинг</b>: {{setting}}\n\n" +
+            "<b>Система и издание</b>: {{system}}\n" +
             "<b>Описание</b>:\n {{description}}\n\n" +
             "<b>Возраст</b>: {{age}}\n" +
             "<b>Требования к игрокам</b>: {{requirements}}\n"
@@ -71,20 +71,43 @@ def generate_game_description_by_id(game_id: str):
     return game_description
 
 
+
 # GETTERS
-def get_game_by_id(game_id: str):
-    return games[game_id]
+async def get_game_by_id_in_start_data(dialog_manager: DialogManager, **kwargs):
+    game_id = dialog_manager.start_data.get("game_id")
+    if game_id is None:
+        logging.critical("cannot find game id in start data")
+        await dialog_manager.done()
+        return
+
+    current_game = games.get(game_id)
+    if current_game is None:
+        logging.critical("cannot find game with id {}".format(game_id))
+        await dialog_manager.done()
+        return
+
+    return current_game
+
 
 
 # ONCLICK GENERATORS
 def generate_check_game(rights: str):
-    async def check_game(message: Message, message_input: MessageInput, manager: DialogManager):
+    async def check_game(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
         str_index = message.text.strip(" .;'\"")
         if str_index is None or not str_index.isdigit():
             await message.answer("Вам необходимо ввести число.")
             return
         index = int(str_index)
 
-        await manager.start(GameInspection.checking_game, data={"game_id": user[rights]["games"][index - 1], "rights": rights})
+        await dialog_manager.start(GameInspection.checking_game, data={"game_id": user[rights]["games"][index - 1], "rights": rights})
 
     return check_game
+
+
+def generate_save_message_from_user_no_formatting_game(field: str, parameter: str, next_states: dict[str, Optional[State]]):
+    async def save_message_from_user_no_formatting(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
+        games[field][parameter] = message.text
+
+        await switch_state(dialog_manager, next_states)
+
+    return save_message_from_user_no_formatting

@@ -6,8 +6,9 @@ from aiogram_dialog.widgets.text import Const, Format, Jinja
 from aiogram_dialog.widgets.kbd import Button, Row, Column, Start, Select, Cancel
 
 from bot.dialogs.general_tools import need_to_display_current_value, go_back_when_edit_mode, switch_state, \
-    raise_keyboard_error, get_item_by_key, generate_save_message_from_user_no_formatting
+    raise_keyboard_error, get_item_by_key
 from bot.dialogs.registration.profile import user, get_user_general
+from bot.dialogs.registration.registration_tools import generate_save_message_from_user_no_formatting_user
 from bot.states.registration_states import Registration, PlayerForm, MasterForm
 
 
@@ -56,21 +57,22 @@ async def get_time_zones(**kwargs):
 
 
 # SELECTORS
-def is_user_player(data: dict, widget: Whenable, manager: DialogManager):
+def is_user_player(data: dict, widget: Whenable, dialog_manager: DialogManager):
     role = user["general"].get("role")
     return role == "Игрок" or role == "Игрок и Мастер"
 
 
-def is_user_master(data: dict, widget: Whenable, manager: DialogManager):
+def is_user_master(data: dict, widget: Whenable, dialog_manager: DialogManager):
     role = user["general"].get("role")
     return role == "Мастер" or role == "Игрок и Мастер"
 
 
 # Saving profile settings (ONCLICK)
-save_name = generate_save_message_from_user_no_formatting("general", "name", {"edit": None, "register": Registration.typing_age})
+save_name = generate_save_message_from_user_no_formatting_user("general", "name",
+                                                               {"edit": None, "register": Registration.typing_age})
 
 
-async def save_age(message: Message, message_input: MessageInput, manager: DialogManager):
+async def save_age(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
     str_age = message.text.strip()
     if str_age is None or not str_age.isdigit():
         await message.answer("Вам необходимо ввести число.")
@@ -84,10 +86,10 @@ async def save_age(message: Message, message_input: MessageInput, manager: Dialo
     user["general"]["age"] = int_age
 
     next_states = {"edit": None, "register": Registration.choosing_format}
-    await switch_state(manager, next_states)
+    await switch_state(dialog_manager, next_states)
 
 
-async def save_format(callback: CallbackQuery, button: Button, manager: DialogManager):
+async def save_format(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
     format_by_id = {
         "format_offline": "Оффлайн",
         "format_online": "Онлайн",
@@ -101,50 +103,53 @@ async def save_format(callback: CallbackQuery, button: Button, manager: DialogMa
     user["general"]["format"] = session_format
 
     next_states = {"edit": None, "register": Registration.choosing_city}
-    await switch_state(manager, next_states)
+    await switch_state(dialog_manager, next_states)
 
 
-async def save_city(callback: CallbackQuery, button: Button, manager: DialogManager, item_id: str):
-    item = await get_item_by_key(get_cities, "cities", "id", item_id, callback, "город", False, False)
+async def save_city(callback: CallbackQuery, button: Button, dialog_manager: DialogManager, item_id: str):
+    data = await get_cities()
+    item = await get_item_by_key(data, "cities", "id", item_id, callback, "город", False, False)
 
     user["general"]["city"] = item["city"]
     user["general"]["time_zone"] = item["time_zone"]
 
     next_states = {"edit": None, "register": Registration.choosing_role}
-    await switch_state(manager, next_states)
+    await switch_state(dialog_manager, next_states)
 
 
-async def save_city_from_user(message: Message, message_input: MessageInput, manager: DialogManager):
+async def save_city_from_user(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
     # TODO: detect time zone automatically for all cities
     user_city = message.text.strip(". \"\'")
 
     # TODO: detect synonyms to main cites, e. g. Москва - мск
-    item = await get_item_by_key(get_cities, "cities", "city", user_city, message, "город", True, True)
+    data = await get_cities()
+    item = await get_item_by_key(data, "cities", "city", user_city, message, "город", True, True)
 
     if not item is None:
         user["general"]["city"] = item["city"]
         user["general"]["time_zone"] = item["time_zone"]
 
         next_states = {"edit": None, "register": Registration.choosing_role}
-        await switch_state(manager, next_states)
+        await switch_state(dialog_manager, next_states)
         return
 
     user["general"]["city"] = user_city.title()
 
     next_states = {"edit": Registration.choosing_time_zone, "register": Registration.choosing_time_zone}
-    await switch_state(manager, next_states)
+    await switch_state(dialog_manager, next_states)
 
 
-async def save_time_zone(callback: CallbackQuery, button: Button, manager: DialogManager, item_id: str):
-    item = await get_item_by_key(get_time_zones, "time_zones", "id", item_id, callback, "часовой пояс", False, False)
+async def save_time_zone(callback: CallbackQuery, button: Button, dialog_manager: DialogManager, item_id: str):
+    data = await get_time_zones()
+    item = await get_item_by_key(data, "time_zones", "id", item_id, callback, "часовой пояс", False, False)
 
     user["general"]["time_zone"] = item["time_zone"]
 
     next_states = {"edit": None, "register": Registration.choosing_role}
-    await switch_state(manager, next_states)
+    await switch_state(dialog_manager, next_states)
 
 
-async def save_time_zone_from_user(message: Message, message_input: MessageInput, manager: DialogManager):
+async def save_time_zone_from_user(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
     time_zone = message.text.strip(" .:\"\'")
     if time_zone is None:
         await message.answer("Ваше сообщение не должно быть пустым.")
@@ -190,10 +195,10 @@ async def save_time_zone_from_user(message: Message, message_input: MessageInput
     user["general"]["time_zone"] = formatted_time_zone
 
     next_states = {"edit": None, "register": Registration.choosing_role}
-    await switch_state(manager, next_states)
+    await switch_state(dialog_manager, next_states)
 
 
-async def save_role(callback: CallbackQuery, button: Button, manager: DialogManager):
+async def save_role(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
     role_by_id = {
         "role_player": "Игрок",
         "role_master": "Мастер",
@@ -207,11 +212,11 @@ async def save_role(callback: CallbackQuery, button: Button, manager: DialogMana
     user["general"]["role"] = role
 
     next_states = {"edit": None, "register": Registration.typing_about_information}
-    await switch_state(manager, next_states)
+    await switch_state(dialog_manager, next_states)
 
 
-save_about_info = generate_save_message_from_user_no_formatting("general", "about_info", {"edit": None, "register": Registration.end_of_dialog})
-
+save_about_info = generate_save_message_from_user_no_formatting_user("general", "about_info",
+                                                                     {"edit": None, "register": Registration.end_of_dialog})
 
 # TODO: change phrases, make them more friendly
 # Registration dialog
@@ -243,9 +248,9 @@ registration_dialog = Dialog(
 
         Row(
             Button(Const("Оффлайн"), id="format_offline", on_click=save_format),
-            Button(Const("Онлайн"), id="format_online", on_click=save_format)),
-        Button(Const("Оффлайн и Онлайн"), id="format_both", on_click=save_format
-               ),
+            Button(Const("Онлайн"), id="format_online", on_click=save_format)
+        ),
+        Button(Const("Оффлайн и Онлайн"), id="format_both", on_click=save_format),
 
         go_back_when_edit_mode,
         state=Registration.choosing_format,
@@ -297,9 +302,9 @@ registration_dialog = Dialog(
 
         Row(
             Button(Const("Игрок"), id="role_player", on_click=save_role),
-            Button(Const("Мастер"), id="role_master", on_click=save_role)),
-        Button(Const("Игрок и Мастер"), id="role_both", on_click=save_role
-               ),
+            Button(Const("Мастер"), id="role_master", on_click=save_role)
+        ),
+        Button(Const("Игрок и Мастер"), id="role_both", on_click=save_role),
 
         go_back_when_edit_mode,
         state=Registration.choosing_role,
@@ -318,10 +323,12 @@ registration_dialog = Dialog(
     Window(
         Const(
             "Вы заполнили анкету! Вы всегда можете посмотреть или отредактировать её, введя команду /profile. Там же вы сможете указать дополнительную информацию, которая поможет мастерам лучше понять ваши интересы и сэкономит вам время при создании игры."),
-        Row(Start(Const("Анкета игрока"), state=PlayerForm.checking_info, id="player_form_from_register",
+        Row(
+            Start(Const("Анкета игрока"), state=PlayerForm.checking_info, id="player_form_from_register",
                   when=is_user_player),
             Start(Const("Анкета мастера"), state=MasterForm.checking_info, id="master_form_from_register"),
-            when=is_user_master),
+            when=is_user_master
+        ),
         Cancel(Const("Завершить"), id="end_registration"),
         state=Registration.end_of_dialog,
     ),

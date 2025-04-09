@@ -22,7 +22,9 @@ async def set_main_menu(bot: Bot):
         BotCommand(command="/master",
                    description="Анкета мастера"),
         BotCommand(command="/games",
-                   description="Просмотр статуса и создание игр")
+                   description="Просмотр статуса и создание игр"),
+        BotCommand(command="/create",
+                   description="Создать новую игру"),
     ]
 
     await bot.set_my_commands(main_menu_commands)
@@ -64,9 +66,9 @@ async def check_profile(message: Message, dialog_manager: DialogManager):
     await dialog_manager.start(AllGames.checking_games)
 
 
-# @router.message(Command("create"))
-# async def check_profile(message: Message, dialog_manager: DialogManager):
-#     await dialog_manager.start(GameCreation.choosing_default)
+@router.message(Command("create"))
+async def check_profile(message: Message, dialog_manager: DialogManager):
+    await dialog_manager.start(GameCreation.typing_title, data={"mode": "register"})
 
 
 @router.message(Command("cancel"))

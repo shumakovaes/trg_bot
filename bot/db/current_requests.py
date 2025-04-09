@@ -47,6 +47,25 @@ game = {
     "picture": "",
 }
 
+default_game = {
+    "status": "",
+    "master": "id_000000",
+    "players": [""],
+    "title": "",
+    "place": "",
+    "platform": "",
+    "time": "",
+    "cost": "",
+    "format": "",
+    "type": "",
+    "system": "",
+    "number_of_players": "",
+    "requirements": "",
+    "age": "",
+    "description": "",
+    "picture": "",
+}
+
 games = {
     "id_000000": game
 }

@@ -8,15 +8,15 @@ from aiogram_dialog.widgets.kbd import Button, Row, Column, Start, Select, Cance
 
 from bot.db.current_requests import get_user_player, get_user_master, get_player_games, get_master_games
 from bot.dialogs.games.games_tools import games_list, games_navigation, generate_check_game
-from bot.states.games_states import AllGames, GameInspection
+from bot.states.games_states import AllGames, GameInspection, GameCreation
 
 # Choosing game dialog
 all_games_dialog = Dialog(
     Window(
         Const("Здесь вы можете просмотреть и отредактировать все созданные вами игры, а также отслеживать статус поданных заявок на игру"),
         Row(
-            SwitchTo(Const("Созданные игры"), state=AllGames.checking_player_games, id="player_games"),
-            SwitchTo(Const("Поданные заявки"), state=AllGames.checking_master_games, id="master_games"),
+            SwitchTo(Const("Созданные игры"), state=AllGames.checking_master_games, id="player_games"),
+            SwitchTo(Const("Поданные заявки"), state=AllGames.checking_player_games, id="master_games"),
         ),
         Cancel(Const("Выйти")),
         state=AllGames.checking_games,
@@ -37,6 +37,7 @@ all_games_dialog = Dialog(
         games_list,
 
         MessageInput(func=generate_check_game("master"), content_types=[ContentType.TEXT]),
+        Start(text=Const("Создать новую игру"), state=GameCreation.typing_title, id="create_game_from_all_games", data={"mode": "register"}),
 
         games_navigation,
         SwitchTo(text=Const("Назад"), state=AllGames.checking_games, id="back_to_checking_games_from_master"),

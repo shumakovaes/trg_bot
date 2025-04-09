@@ -17,8 +17,8 @@ from bot.db.current_requests import user, get_user_player, get_user_general
 
 
 # On start
-async def set_current_systems(start_data: Any, manager: DialogManager):
-    manager.dialog_data["current_systems"] = set()
+async def set_current_systems(start_data: Any, dialog_manager: DialogManager):
+    dialog_manager.dialog_data["current_systems"] = set()
 
 
 # Passing arguments to the dialog (GETTERS)
@@ -47,7 +47,7 @@ async def get_systems(dialog_manager: DialogManager, **kwargs):
 save_experience_player = generate_save_user_experience("player", PlayerForm.choosing_payment)
 
 
-async def save_payment(callback: CallbackQuery, button: Button, manager: DialogManager):
+async def save_payment(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
     payment_by_id = {
         "payment_free": "Только бесплатные",
         "payment_paid": "Только платные",
@@ -61,43 +61,44 @@ async def save_payment(callback: CallbackQuery, button: Button, manager: DialogM
     user["player"]["payment"] = payment
 
     next_states = {"edit": None, "register": PlayerForm.choosing_systems}
-    await switch_state(manager, next_states)
+    await switch_state(dialog_manager, next_states)
 
 
-async def save_systems_from_user(message: Message, message_input: MessageInput, manager: DialogManager):
-    if manager.dialog_data.get("current_systems") is None:
-        await raise_dialog_data_error(manager, "current_systems", message)
+async def save_systems_from_user(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
+    if dialog_manager.dialog_data.get("current_systems") is None:
+        await raise_dialog_data_error(dialog_manager, "current_systems", message)
         return
 
     user_systems = list(message.text.split(','))
     user_systems = [system.strip(" \'\";,") for system in user_systems]
 
+    data = await get_systems(dialog_manager)
     # TODO: detect synonyms to systems, e. g. D&D - DnD
     for system in user_systems:
-        item = await get_item_by_key(get_systems, "popular_systems", "system", system, message, "системы", True, True)
+        item = await get_item_by_key(data, "popular_systems", "system", system, message, "системы", True, True)
 
         if not item is None:
-            multiselect: ManagedMultiselect = manager.find("systems_multiselect")
+            multiselect: ManagedMultiselect = dialog_manager.find("systems_multiselect")
             await multiselect.set_checked(item["id"], True)
         else:
-            manager.dialog_data["current_systems"].add(system)
+            dialog_manager.dialog_data["current_systems"].add(system)
 
 
-async def save_systems_and_exit(callback: CallbackQuery, button: Button, manager: DialogManager):
-    if manager.dialog_data.get("current_systems") is None:
-        await raise_dialog_data_error(manager, "current_systems", callback)
+async def save_systems_and_exit(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
+    if dialog_manager.dialog_data.get("current_systems") is None:
+        await raise_dialog_data_error(dialog_manager, "current_systems", callback)
         return
 
-    multiselect: ManagedMultiselect = manager.find("systems_multiselect")
-    data = await get_systems()
+    multiselect: ManagedMultiselect = dialog_manager.find("systems_multiselect")
+    data = await get_systems(dialog_manager)
     systems = data["popular_systems"]
 
     for system in systems:
         if multiselect.is_checked(system["id"]):
-            manager.dialog_data["current_systems"].add(system["system"])
+            dialog_manager.dialog_data["current_systems"].add(system["system"])
 
-    user["player"]["systems"] = manager.dialog_data.get("current_systems")
-    await manager.done()
+    user["player"]["systems"] = dialog_manager.dialog_data.get("current_systems")
+    await dialog_manager.done()
 
 
 # Player form
@@ -181,9 +182,8 @@ player_form_dialog = Dialog(
             sep="",
             when=need_to_display_current_value,
         ),
-        # TODO: fix this
         Multi(
-            Format("\n<b>Добавленные вручную системы</b>: "),
+            Format("<b>Добавленные вручную системы</b>: "),
             List(
                 Jinja("{{item}}"),
                 items="current_systems",
