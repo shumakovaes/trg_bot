@@ -95,6 +95,10 @@ class PlayerModel:
     def sessions(self) -> List['SessionModel']:
         return [SessionModel(s) for s in self._sessions]
 
+    async def get_player(self, session):
+        player = await session.execute(select(Player).where(User.telegram_id == self.user.telegram_id))
+        return player.scalars().first()
+
 
 class MasterModel:
     def __init__(self, master: Master):
@@ -105,6 +109,10 @@ class MasterModel:
         # Связи
         self._user = master.user
         self._sessions = master.sessions
+
+    async def get_master(self, session):
+        master = await session.execute(select(Master).where(User.telegram_id == self.user.telegram_id))
+        return master.scalars().first()
 
     @property
     def user(self) -> UserModel:

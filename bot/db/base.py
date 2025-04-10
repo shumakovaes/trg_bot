@@ -1,8 +1,6 @@
-from typing import Any
-
 from sqlalchemy import (
     Column, Integer, BigInteger, String, Text, DateTime,
-    ForeignKey, Boolean, Enum, Table, ARRAY
+    ForeignKey, Boolean, Table
 )
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
