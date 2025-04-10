@@ -1,10 +1,12 @@
 from typing import List, Optional, Union
 
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from bot.db.base import User, Player, Master, Session
 
 all_roles = ['Игрок', 'Мастер']
 all_formats = ['Онлайн', 'Оффлайн']
-all_systems = ['DnD', 'Pathfinder']
 all_experience_levels = ['Опыт1', 'Опыт2', 'Опыт3']
 
 
@@ -21,14 +23,6 @@ def get_role(user: User):
         if user.role & 2 ** i:
             roles.append(all_roles[i])
     return concat(roles)
-
-
-def get_preferred_systems(user: User):
-    systems = []
-    for i in range(len(all_systems)):
-        if user.role & 2 ** i:
-            systems.append(all_systems[i])
-    return concat(systems)
 
 
 def get_game_format(user: User):
@@ -49,7 +43,7 @@ class UserModel:
         self.time_zone = user.time_zone
         self.role = get_role(user)
         self.game_format = get_game_format(user)
-        self.preferred_systems = get_preferred_systems(user)
+        self.preferred_systems = user.preferred_systems
         self.about_info = user.about_info
         self.created_at = user.created_at
         self._player_profile = user.player_profile
@@ -64,8 +58,9 @@ class UserModel:
     def master_profile(self) -> Optional['MasterModel']:
         return MasterModel(self._master_profile) if self._master_profile else None
 
-    def get_user(self) -> User:
-        pass
+    async def get_user(self, session: AsyncSession) -> User:
+        user = await session.execute(select(User).where(User.telegram_id == self.telegram_id))
+        return user.scalars().first()
 
     @property
     def sessions(self) -> List['SessionModel']:
@@ -126,7 +121,7 @@ class SessionModel:
         self.id = session.id
         self.title = session.title
         self.description = session.description
-        self.game_system = all_systems[session.game_system]
+        self.game_system = session.game_system
         self.date_time = session.date_time
         self.format = all_formats[session.format]
         self.status = session.status
@@ -140,6 +135,10 @@ class SessionModel:
     @property
     def creator(self) -> UserModel:
         return UserModel(self._creator)
+
+    async def get_game(self, session: AsyncSession) -> Session:
+        game = await session.execute(select(Session).where(Session.id == self.id))
+        return game.scalars().first()
 
     @property
     def players(self) -> List[Union[PlayerModel, UserModel]]:

@@ -2,26 +2,46 @@ from aiogram import Router, types
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from bot.db.models import User
+from bot.db.base import Player, Master
+from bot.db.models import User, SessionModel, PlayerModel, MasterModel
 from bot.db.models import UserModel
 
 router = Router()
 
 
-async def get_user(session: AsyncSession, message: types.Message) -> [UserModel | None]:
-    result = await session.execute(select(User).where(User.telegram_id == message.from_user.id))
+async def get_user(session: AsyncSession, tg_id) -> [UserModel | None]:
+    result = await session.execute(select(User).where(User.telegram_id == tg_id))
     user = result.scalars().first()
     if not user:
-        await message.answer("Сначала зарегистрируйтесь с помощью /register")
         return None
     return UserModel(user)
 
+async def get_player(session: AsyncSession, tg_id) -> [PlayerModel | None]:
+    result = await session.execute(select(Player).where(User.telegram_id == tg_id))
+    player = result.scalars().first()
+    if not player:
+        return None
+    return PlayerModel(player)
+
+
+async def get_master(session: AsyncSession, tg_id) -> [MasterModel | None]:
+    result = await session.execute(select(Master).where(User.telegram_id == tg_id))
+    master = result.scalars().first()
+    if not master:
+        return None
+    return MasterModel(master)
+
 
 async def register_user(user: UserModel, session: AsyncSession):
-    new_user = user.get_user()
+    new_user = user.get_user(session)
     session.add(new_user)
     await session.commit()
 
+
+async def register_game(game: SessionModel, session: AsyncSession):
+    new_game = game.get_game(session)
+    session.add(new_game)
+    await session.commit()
 
 """
 class EditProfile(StatesGroup):

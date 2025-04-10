@@ -53,7 +53,7 @@ async def main():
     dp.message.filter(F.chat.type == "private")
 
     dp.include_routers(default_commands.router)
-    all_dialogs = get_all_dialogs();
+    all_dialogs = get_all_dialogs()
 
     for dialog in all_dialogs:
         dp.include_routers(dialog)
