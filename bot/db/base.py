@@ -1,8 +1,6 @@
-from typing import Any
-
 from sqlalchemy import (
     Column, Integer, BigInteger, String, Text, DateTime,
-    ForeignKey, Boolean, Enum, Table, ARRAY
+    ForeignKey, Boolean, Table
 )
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
@@ -30,7 +28,7 @@ class User(Base):
     time_zone = Column(Integer, nullable=False)
     role = Column(Integer, nullable=False)
     game_format = Column(Integer, nullable=False)
-    preferred_systems = Column(Integer, nullable=False)
+    preferred_systems = Column(String, nullable=False)
     about_info = Column(Text)
     created_at = Column(DateTime, server_default=func.now())
 
@@ -44,7 +42,7 @@ class Player(Base):
 
     id = Column(Integer, ForeignKey("users.id"), primary_key=True)
     experience_level = Column(Integer)
-    availability = Column(ARRAY(DateTime))
+    availability = Column(String)
 
     user = relationship("User", back_populates="player_profile")
     sessions = relationship("Session", secondary=session_players, back_populates="players")
@@ -67,7 +65,7 @@ class Session(Base):
     id = Column(Integer, primary_key=True)
     title = Column(String(100), nullable=False)
     description = Column(Text)
-    game_system = Column(Integer)
+    game_system = Column(String)
     date_time = Column(DateTime, nullable=False)
     format = Column(Integer, nullable=False)
     status = Column(Boolean, default=True)

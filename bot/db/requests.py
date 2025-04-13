@@ -1,274 +1,254 @@
-from aiogram import Router, types
+from typing import Optional, Type, Any, Dict
+from aiogram import Router
+from sqlalchemy import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from bot.db.models import User
-from bot.db.models import UserModel
+from bot.db.base import User, Player, Master, Session
+from bot.db.models import UserModel, SessionModel, PlayerModel, MasterModel, all_formats, all_roles, \
+    all_experience_levels
 
 router = Router()
 
 
-async def get_user(session: AsyncSession, message: types.Message) -> [UserModel | None]:
-    result = await session.execute(select(User).where(User.telegram_id == message.from_user.id))
-    user = result.scalars().first()
-    if not user:
-        await message.answer("Сначала зарегистрируйтесь с помощью /register")
+async def _get_entity(
+        session: AsyncSession,
+        model: Type[Any],
+        filters: Dict[str, Any],
+        join_model: Optional[Type[Any]] = None
+) -> Optional[Any]:
+    stmt: Select = select(model)
+
+    if join_model:
+        stmt = stmt.join(join_model)
+
+    for key, value in filters.items():
+        if join_model and hasattr(join_model, key):
+            stmt = stmt.where(getattr(join_model, key) == value)
+        else:
+            stmt = stmt.where(getattr(model, key) == value)
+
+    result = await session.execute(stmt)
+    return result.scalars().first()
+
+
+async def _register_entity(
+        session: AsyncSession,
+        model: Type[Any],
+        data: Dict[str, Any],
+        check_filters: Optional[Dict[str, Any]] = None
+) -> Any:
+    if check_filters:
+        existing = await _get_entity(session, model, check_filters)
+        if existing:
+            entity_name = model.__name__.lower()
+            raise ValueError(f"{entity_name.capitalize()} already exists")
+
+    entity = model(**data)
+    session.add(entity)
+    await session.commit()
+    await session.refresh(entity)
+    return entity
+
+
+async def _edit_entity(
+        session: AsyncSession,
+        model: Type[Any],
+        entity_id: int,
+        changes: Dict[str, Any],
+        allowed_fields: set
+) -> Optional[Any]:
+    if not set(changes.keys()).issubset(allowed_fields):
+        raise ValueError(f"Invalid fields for {model.__name__} update")
+
+    entity = await session.get(model, entity_id)
+    if not entity:
         return None
+
+    for key, value in changes.items():
+        setattr(entity, key, value)
+
+    await session.commit()
+    await session.refresh(entity)
+    return entity
+
+
+async def get_user_model(session: AsyncSession, tg_id: int) -> Optional[UserModel]:
+    user = await _get_entity(session, User, {"telegram_id": tg_id})
+    return UserModel(user) if user else None
+
+
+async def get_player_model(session: AsyncSession, tg_id: int) -> Optional[PlayerModel]:
+    player = await _get_entity(session, Player, {"telegram_id": tg_id}, join_model=User)
+    return PlayerModel(player) if player else None
+
+
+async def get_master_model(session: AsyncSession, tg_id: int) -> Optional[MasterModel]:
+    master = await _get_entity(session, Master, {"telegram_id": tg_id}, join_model=User)
+    return MasterModel(master) if master else None
+
+
+async def get_game_model(session: AsyncSession, game_id: int) -> Optional[SessionModel]:
+    game = await _get_entity(session, Session, {"id": game_id})
+    return SessionModel(game) if game else None
+
+
+async def register_user(user_model: UserModel, session: AsyncSession) -> UserModel:
+    role_mask = sum(1 << all_roles.index(r) for r in user_model.role.split(', '))
+    format_mask = sum(1 << all_formats.index(f) for f in user_model.game_format.split(', '))
+
+    user_data = {
+        "telegram_id": user_model.telegram_id,
+        "name": user_model.name,
+        "age": user_model.age,
+        "city": user_model.city,
+        "time_zone": user_model.time_zone,
+        "role": role_mask,
+        "game_format": format_mask,
+        "preferred_systems": user_model.preferred_systems,
+        "about_info": user_model.about_info
+    }
+
+    user = await _register_entity(
+        session,
+        User,
+        user_data,
+        check_filters={"telegram_id": user_model.telegram_id}
+    )
     return UserModel(user)
 
 
-async def register_user(user: UserModel, session: AsyncSession):
-    new_user = user.get_user()
-    session.add(new_user)
-    await session.commit()
-
-
-"""
-class EditProfile(StatesGroup):
-    choosing_field = State()
-    editing_name = State()
-    editing_age = State()
-    editing_city = State()
-    editing_game_format = State()
-    editing_preferred_systems = State()
-    editing_about = State()
-
-
-class EditPlayer(StatesGroup):
-    choosing_field = State()
-    editing_experience = State()
-    editing_availability = State()
-
-
-class EditMaster(StatesGroup):
-    choosing_field = State()
-    editing_style = State()
-
-@router.message(Command(commands=["profile"]))
-async def show_profile(message: types.Message, session: AsyncSession):
-    result = await session.execute(select(User).where(User.telegram_id == message.from_user.id))
-    user = result.scalars().first()
+async def register_player(player_model: PlayerModel, session: AsyncSession) -> PlayerModel:
+    user = await get_user_model(session, player_model.user.telegram_id)
     if not user:
-        await message.answer("Вы еще не зарегистрированы. Используйте команду /register.")
-        return
+        raise ValueError("User not found")
 
-    profile_text = (
-        f"<b>Ваш профиль</b>:\n"
-        f"Имя: <b>{user.name}</b>\n"
-        f"Возраст: <b>{user.age}</b>\n"
-        f"Город: <b>{user.city}</b>\n"
-        f"Часовой пояс: <b>{user.time_zone}</b>\n"
-        f"Роль: <b>{user.role}</b>\n"
-        f"Формат игры: <b>{user.format}</b>\n"
-        f"О себе: <b>{user.about_info or 'Не указано'}</b>\n"
+    player_data = {
+        "id": user.id,
+        "experience_level": all_experience_levels.index(player_model.experience_level),
+        "availability": player_model.availability
+    }
+
+    player = await _register_entity(
+        session,
+        Player,
+        player_data,
+        check_filters={"id": user.id}
     )
-
-    await message.answer(profile_text, parse_mode="HTML")
-
-
-@router.message(Command(commands=["register"]))
-async def register_user(message: types.Message, session: AsyncSession):
-    result = await session.execute(select(User).where(User.telegram_id == message.from_user.id))
-    user = result.scalars().first()
-
-    if user:
-        await message.answer("Вы уже зарегистрированы! Используйте /profile для просмотра профиля.")
-        return
-
-    new_user = User(
-        telegram_id=message.from_user.id,
-        name=message.from_user.full_name,
-        age=18,  # Можно обновить позже через команду
-        format="Оффлайн и Онлайн",
-        city="Не указан",
-        time_zone="GMT+0",
-        role="Игрок",
-        about_info=""
-    )
-    session.add(new_user)
-    await session.commit()
-    await message.answer("Вы успешно зарегистрированы! Используйте /profile для просмотра профиля.")
-
-@router.message(Command(commands=["edit"]))
-async def edit_profile_start(message: types.Message, state: FSMContext):
-    await message.answer(
-        "Что вы хотите изменить?",
-        reply_markup=types.ReplyKeyboardMarkup(
-            keyboard=[
-                [types.KeyboardButton(text="Имя")],
-                [types.KeyboardButton(text="Возраст")],
-                [types.KeyboardButton(text="Город")],
-                [types.KeyboardButton(text="Формат игры")],
-                [types.KeyboardButton(text="Предпочитаемые системы")],
-                [types.KeyboardButton(text="О себе")],
-                [types.KeyboardButton(text="Анкету Мастера")],
-                [types.KeyboardButton(text="Анкету Игрока")],
-                [types.KeyboardButton(text="Отмена")],
-            ],
-            resize_keyboard=True,
-        )
-    )
-    await state.set_state(EditProfile.choosing_field)
+    return PlayerModel(player)
 
 
-@router.message(EditProfile.choosing_field, F.text.casefold() == "Отмена")
-async def edit_cancel(message: types.Message, state: FSMContext):
-    await state.clear()
-    await message.answer("Изменения отменены", reply_markup=ReplyKeyboardRemove())
-
-
-@router.message(EditProfile.choosing_field)
-async def edit_field_chosen(message: types.Message, state: FSMContext, session: AsyncSession):
-    field = message.text.lower()
-    if field == "Имя":
-        await state.set_state(EditProfile.editing_name)
-        await message.answer("Введите новое имя:", reply_markup=ReplyKeyboardRemove())
-    elif field == "Возраст":
-        await state.set_state(EditProfile.editing_age)
-        await message.answer("Введите ваш возраст:")
-    elif field == "Город":
-        await state.set_state(EditProfile.editing_city)
-        await message.answer("Введите ваш город:")
-    elif field == "Формат игры":
-        await state.set_state(EditProfile.editing_game_format)
-        await message.answer("Выберите формат игры:",
-                             reply_markup=types.ReplyKeyboardMarkup(
-                                 keyboard=[
-                                     [types.KeyboardButton(text="Оффлайн")],
-                                     [types.KeyboardButton(text="Онлайн")],
-                                     [types.KeyboardButton(text="Оффлайн и Онлайн")],
-                                 ],
-                                 resize_keyboard=True,
-                             )
-                             )
-    elif field == "О себе":
-        await state.set_state(EditProfile.editing_about)
-        await message.answer("Напишите о себе:", reply_markup=ReplyKeyboardRemove())
-
-
-# Обработчики для каждого поля
-@router.message(EditProfile.editing_name, F.text)
-async def name_chosen(message: types.Message, state: FSMContext, session: AsyncSession):
-    await session.execute(
-        update(User)
-        .where(User.telegram_id == message.from_user.id)
-        .values(name=message.text)
-    )
-    await session.commit()
-    await state.clear()
-    await message.answer("Имя успешно обновлено!")
-
-
-@router.message(EditProfile.editing_age, F.text)
-async def age_chosen(message: types.Message, state: FSMContext, session: AsyncSession):
-    if not message.text.isdigit():
-        await message.answer("Введите число!")
-        return
-    await session.execute(
-        update(User)
-        .where(User.telegram_id == message.from_user.id)
-        .values(age=int(message.text))
-    )
-    await session.commit()
-    await state.clear()
-    await message.answer("Возраст успешно обновлён!")
-
-
-@router.message(EditProfile.editing_city, F.text)
-async def city_chosen(message: types.Message, state: FSMContext, session: AsyncSession):
-    await session.execute(
-        update(User)
-        .where(User.telegram_id == message.from_user.id)
-        .values(city=message.text)
-    )
-    await session.commit()
-    await state.clear()
-    await message.answer("Город успешно обновлён!")
-
-
-@router.message(EditProfile.editing_about, F.text)
-async def about_chosen(message: types.Message, state: FSMContext, session: AsyncSession):
-    await session.execute(
-        update(User)
-        .where(User.telegram_id == message.from_user.id)
-        .values(about=message.text)
-    )
-    await session.commit()
-    await state.clear()
-    await message.answer("Информация о вас успешно обновлёна!")
-
-
-# Аналогичные обработчики для других полей...
-
-@router.message(Command(commands=["edit", "player"]))
-async def edit_player_start(message: types.Message, state: FSMContext, session: AsyncSession):
-    user = await get_user_or_respond(session, message)
+async def register_master(master_model: MasterModel, session: AsyncSession) -> MasterModel:
+    user = await get_user_model(session, master_model.user.telegram_id)
     if not user:
-        return
+        raise ValueError("User not found")
 
-    if not user.player_profile:
-        # Создаём профиль игрока если его нет
-        player = Player(id=user.id)
-        session.add(player)
-        await session.commit()
+    master_data = {
+        "id": user.id,
+        "master_style": master_model.master_style,
+        "rating": master_model.rating
+    }
 
-    await message.answer(
-        "Что вы хотите изменить в анкете игрока?",
-        reply_markup=types.ReplyKeyboardMarkup(
-            keyboard=[
-                [types.KeyboardButton(text="Системы")],
-                [types.KeyboardButton(text="Опыт")],
-                [types.KeyboardButton(text="Доступность")],
-                [types.KeyboardButton(text="Отмена")],
-            ],
-            resize_keyboard=True,
-        )
+    master = await _register_entity(
+        session,
+        Master,
+        master_data,
+        check_filters={"id": user.id}
     )
-    await state.set_state(EditPlayer.choosing_field)
+    return MasterModel(master)
 
 
-@router.message(EditPlayer.editing_systems, F.text)
-async def player_systems_chosen(message: types.Message, state: FSMContext, session: AsyncSession):
-    systems = [s.strip() for s in message.text.split(",")]
-    valid_systems = {'DnD', 'Pathfinder'}
+async def register_game(game_model: SessionModel, session: AsyncSession) -> SessionModel:
+    if game_model.format not in all_formats:
+        raise ValueError(f"Invalid format: {game_model.format}")
+    if game_model.looking_for not in all_roles:
+        raise ValueError(f"Invalid role: {game_model.looking_for}")
 
-    if not all(s in valid_systems for s in systems):
-        await message.answer("Допустимые системы: DnD, Pathfinder")
-        return
+    game_data = {
+        "title": game_model.title,
+        "description": game_model.description,
+        "game_system": game_model.game_system,
+        "date_time": game_model.date_time,
+        "format": all_formats.index(game_model.format),
+        "status": game_model.status,
+        "max_players": game_model.max_players,
+        "looking_for": all_roles.index(game_model.looking_for),
+        "creator_id": game_model.creator.id
+    }
 
-    await session.execute(
-        update(Player)
-        .where(Player.id == message.from_user.id)
-        .values(preferred_systems=systems)
-    )
-    await session.commit()
-    await state.clear()
-    await message.answer("Системы обновлены!")
+    game = await _register_entity(session, Session, game_data)
+    return SessionModel(game)
 
 
-# Аналогично для мастеров...
+async def edit_user(tg_id: int, changes: dict, session: AsyncSession) -> Optional[UserModel]:
+    allowed_fields = {
+        "name", "age", "city", "time_zone",
+        "preferred_systems", "about_info"
+    }
 
-@router.message(Command(commands=["edit", "master"]))
-async def edit_master_start(message: types.Message, state: FSMContext, session: AsyncSession):
-    user = await get_user_or_respond(session, message)
+    user = await get_user_model(session, tg_id)
     if not user:
-        return
+        return None
 
-    if not user.master_profile:
-        master = Master(id=user.id)
-        session.add(master)
-        await session.commit()
-
-    await message.answer(
-        "Что вы хотите изменить в анкете мастера?",
-        reply_markup=types.ReplyKeyboardMarkup(
-            keyboard=[
-                [types.KeyboardButton(text="Системы")],
-                [types.KeyboardButton(text="Стиль")],
-                [types.KeyboardButton(text="Отмена")],
-            ],
-            resize_keyboard=True,
-        )
+    updated_user = await _edit_entity(
+        session,
+        User,
+        user.id,
+        changes,
+        allowed_fields
     )
-    await state.set_state(EditMaster.choosing_field)
-"""
+    return UserModel(updated_user) if updated_user else None
+
+
+async def edit_player(tg_id: int, changes: dict, session: AsyncSession) -> Optional[PlayerModel]:
+    allowed_fields = {"experience_level", "availability"}
+
+    player = await get_player_model(session, tg_id)
+    if not player:
+        return None
+
+    updated_player = await _edit_entity(
+        session,
+        Player,
+        player.id,
+        changes,
+        allowed_fields
+    )
+    return PlayerModel(updated_player) if updated_player else None
+
+
+async def edit_master(tg_id: int, changes: dict, session: AsyncSession) -> Optional[MasterModel]:
+    allowed_fields = {"master_style", "rating"}
+
+    master = await get_master_model(session, tg_id)
+    if not master:
+        return None
+
+    updated_master = await _edit_entity(
+        session,
+        Master,
+        master.id,
+        changes,
+        allowed_fields
+    )
+    return MasterModel(updated_master) if updated_master else None
+
+
+async def edit_game(game_id: int, changes: dict, session: AsyncSession) -> Optional[SessionModel]:
+    allowed_fields = {
+        "title", "description", "game_system",
+        "date_time", "status", "max_players"
+    }
+
+    game = await get_game_model(session, game_id)
+    if not game:
+        return None
+
+    updated_game = await _edit_entity(
+        session,
+        Session,
+        game.id,
+        changes,
+        allowed_fields
+    )
+    return SessionModel(updated_game) if updated_game else None
