@@ -40,9 +40,11 @@ game = {
     "format": "Оффлайн",
     "type": "Ваншот",
     "system": "D&D 5e",
-    "number_of_players": "3-4",
+    "min_number_of_players": 3,
+    "max_number_of_players": 4,
     "requirements": "Дожить",
-    "age": "200+",
+    "min_age": 80,
+    "max_age": 99,
     "description": "Вот бы сейчас, эххх",
     "picture": "",
 }
@@ -59,9 +61,11 @@ default_game = {
     "format": "",
     "type": "",
     "system": "",
-    "number_of_players": "",
+    "min_number_of_players": 0,
+    "max_number_of_players": 0,
     "requirements": "",
-    "age": "",
+    "min_age": 14,
+    "max_age": 99,
     "description": "",
     "picture": "",
 }
@@ -69,6 +73,22 @@ default_game = {
 games = {
     "id_000000": game
 }
+
+
+# These are ttrpgs from top of the list of ORR Roll20 report Q3 | 2021, maybe some other systems should be added:
+# Star Wars, Blades in the Dark, Apocalypse World System, Mutants and Masterminds, Shadowrun, Savage Worlds, Vampire: The Masquerade (as separate from World of Darkness category)
+popular_systems = [
+    {"system": "D&D", "id": "system_dnd"},
+    {"system": "Зов Ктулху", "id": "system_call_of_cthulhu"},
+    {"system": "Pathfinder", "id": "system_pathfinder"},
+    {"system": "Warhammer", "id": "system_warhammer"},
+    {"system": "Мир Тьмы", "id": "system_world_of_darkness"},
+    {"system": "Starfinder", "id": "system_starfinder"},
+    {"system": "FATE", "id": "system_fate"},
+    {"system": "Savage Worlds", "id": "system_savage_worlds"},
+    {"system": "Cyberpunk", "id": "system_cyberpunk"},
+    {"system": "GURPS", "id": "system_gurps"},
+]
 
 
 # Passing arguments to dialog (GETTERS)

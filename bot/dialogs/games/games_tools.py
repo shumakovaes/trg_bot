@@ -76,15 +76,34 @@ async def get_game_by_id(dialog_manager: DialogManager, game_id: Optional[str]):
     if game_id is None:
         logging.critical("cannot find game id in start data")
         await dialog_manager.done()
-        return
+        return None
 
     current_game = games.get(game_id)
     if current_game is None:
         logging.critical("cannot find game with id {}".format(game_id))
         await dialog_manager.done()
-        return
+        return None
 
     return current_game
+
+
+async def get_game_id_in_dialog_data(dialog_manager: DialogManager):
+    game_id = dialog_manager.dialog_data.get("game_id")
+    if game_id is None:
+        logging.critical("no game id was provided")
+        await dialog_manager.done()
+        return None
+
+    return game_id
+
+
+def get_game_id_in_dialog_data_not_async(dialog_manager: DialogManager):
+    game_id = dialog_manager.dialog_data.get("game_id")
+    if game_id is None:
+        logging.critical("no game id was provided")
+
+    return game_id
+
 
 
 # GETTERS
@@ -130,3 +149,66 @@ def generate_save_message_from_user_no_formatting_game(parameter: str, next_stat
         await switch_state(dialog_manager, next_states)
 
     return save_message_from_user_no_formatting
+
+
+def generate_save_diapason_from_user(min_value: int, max_value: int, min_value_key: str, max_value_key: str, next_states: dict[str, Optional[State]]):
+    async def save_diapason_from_user(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
+        if message.text is None:
+            await message.answer("Сообщение не должно быть пустым.")
+            return
+
+        user_number_of_players = message.text.strip(". \"\'")
+        if user_number_of_players == "":
+            await message.answer("Сообщение не должно состоять из одних символов.")
+            return
+        game_id = await get_game_id_in_dialog_data(dialog_manager)
+
+        if user_number_of_players[-1] == '-' or user_number_of_players[-1] == '+':
+            sign_to_word = {"+": "плюсом", "-": "минусом"}
+            sign = user_number_of_players[-1]
+            word_sign = sign_to_word[sign]
+
+            user_number_of_players = user_number_of_players[:-1]
+            if not user_number_of_players.isdigit():
+                await message.answer("Значение перед {} должно быть числом.".format(word_sign))
+                return
+
+            user_number_of_players_int = int(user_number_of_players)
+            if user_number_of_players_int > max_value or user_number_of_players_int < min_value:
+                await message.answer("Значение перед {} должно быть числом между {} и {}.".format(word_sign, min_value, max_value))
+                return
+
+            if sign == '-':
+                games[game_id][min_value_key] = min_value
+                games[game_id][max_value_key] = user_number_of_players_int
+                await switch_state(dialog_manager, next_states)
+            elif sign == '+':
+                games[game_id][min_value_key] = user_number_of_players_int
+                games[game_id][max_value_key] = max_value
+                await switch_state(dialog_manager, next_states)
+            else:
+                logging.critical("unexpected sign: {}".format(sign))
+                await message.answer("Что-то пошло не так.")
+                await dialog_manager.done()
+                return
+
+        user_number_of_players_list = list(user_number_of_players.split("-"))
+        if len(user_number_of_players_list) != 2:
+            await message.answer("Используйте ровно один дефис.")
+            return
+        if not user_number_of_players_list[0].isdigit() or not user_number_of_players_list[1].isdigit():
+            await message.answer("Введите числа через дефис.")
+            return
+
+        min_number_of_players, max_number_of_players = map(int, user_number_of_players_list)
+        if min_number_of_players < min_value or max_number_of_players < min_value or min_number_of_players > max_value or max_number_of_players > max_value:
+            await message.answer("Числа должны лежать в диапазоне от {} до {}.".format(min_value, max_value))
+            return
+        if min_number_of_players > max_number_of_players:
+            min_number_of_players, max_number_of_players = max_number_of_players, min_number_of_players
+
+        games[game_id][min_value_key] = min_number_of_players
+        games[game_id][max_value_key] = max_number_of_players
+        await switch_state(dialog_manager, next_states)
+
+    return save_diapason_from_user

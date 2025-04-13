@@ -13,7 +13,7 @@ from bot.dialogs.general_tools import need_to_display_current_value, go_back_whe
 from bot.dialogs.registration.registration_tools import generate_save_user_experience
 from bot.states.registration_states import PlayerForm
 
-from bot.db.current_requests import user, get_user_player, get_user_general
+from bot.db.current_requests import user, get_user_player, get_user_general, popular_systems
 
 
 # On start
@@ -23,20 +23,6 @@ async def set_current_systems(start_data: Any, dialog_manager: DialogManager):
 
 # Passing arguments to the dialog (GETTERS)
 async def get_systems(dialog_manager: DialogManager, **kwargs):
-    # These are ttrpgs from top of the list of ORR Roll20 report Q3 | 2021, maybe some other systems should be added:
-    # Star Wars, Blades in the Dark, Apocalypse World System, Mutants and Masterminds, Shadowrun, Savage Worlds, Vampire: The Masquerade (as separate from World of Darkness category)
-    popular_systems = [
-        {"system": "D&D", "id": "system_dnd"},
-        {"system": "Зов Ктулху", "id": "system_call_of_cthulhu"},
-        {"system": "Pathfinder", "id": "system_pathfinder"},
-        {"system": "Warhammer", "id": "system_warhammer"},
-        {"system": "Мир Тьмы", "id": "system_world_of_darkness"},
-        {"system": "Starfinder", "id": "system_starfinder"},
-        {"system": "FATE", "id": "system_fate"},
-        {"system": "Savage Worlds", "id": "system_savage_worlds"},
-        {"system": "Cyberpunk", "id": "system_cyberpunk"},
-        {"system": "GURPS", "id": "system_gurps"},
-    ]
     return {
         "current_systems": dialog_manager.dialog_data.get("current_systems", []),
         "popular_systems": popular_systems,

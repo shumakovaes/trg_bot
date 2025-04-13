@@ -33,6 +33,7 @@ save_experience_master = generate_save_user_experience("master", MasterForm.choo
 
 async def save_cost(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
     next_states = {"edit": None, "register": None}
+
     if button.widget_id == "cost_free":
         next_states = {"edit": None, "register": MasterForm.typing_place}
         user["master"]["cost"] = "Бесплатно"

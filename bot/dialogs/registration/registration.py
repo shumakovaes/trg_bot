@@ -160,7 +160,7 @@ async def save_time_zone_from_user(message: Message, message_input: MessageInput
         await message.answer("Не используйте более одного двоеточия.")
         return
 
-    str_time_zone_hours = parts[0].lstrip('+').lstrip('-')
+    str_time_zone_hours = parts[0].lstrip("-+")
     if not str_time_zone_hours.isdigit():
         await message.answer("Часы должны быть числом от -12 до +14.")
         return
