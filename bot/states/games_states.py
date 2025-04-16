@@ -33,7 +33,7 @@ class GameCreation(StatesGroup):
     typing_time = State()
     choosing_system = State()
     choosing_edition = State()
-    choosing_number_of_players = State()
+    choosing_players_number = State()
     choosing_age = State()
     typing_requirements = State()
     typing_description = State()

@@ -9,12 +9,20 @@ from aiogram_dialog.widgets.text import Const, Format, Jinja, List, Multi
 from aiogram_dialog.widgets.kbd import Button, Row, Column, Start, Select, Cancel, SwitchTo, Group, PrevPage, \
     CurrentPage, NextPage
 
-from bot.db.current_requests import get_user_player, get_user_master, games, default_game, popular_systems
+from bot.db.current_requests import get_user_player, get_user_master, games, default_game, popular_systems, user, \
+    MIN_AGE, MAX_AGE, MIN_PLAYERS_NUMBER, MAX_PLAYERS_NUMBER
 from bot.dialogs.games.games_tools import generate_game_description, generate_save_message_from_user_no_formatting_game, \
     get_game_by_id_in_dialog_data, get_game_id_in_dialog_data, generate_save_diapason_from_user, \
-    get_game_id_in_dialog_data_not_async
+    get_game_by_id_in_dialog_data_not_async, \
+    need_to_display_current_value_and_min_and_max_provided_players_number, \
+    need_to_display_current_value_and_only_min_provided_players_number, \
+    need_to_display_current_value_and_only_max_provided_players_number, \
+    need_to_display_current_value_and_nothing_provided_players_number, \
+    need_to_display_current_value_and_min_and_max_provided_age, need_to_display_current_value_and_only_min_provided_age, \
+    need_to_display_current_value_and_only_max_provided_age, need_to_display_current_value_and_nothing_provided_age
 from bot.dialogs.general_tools import need_to_display_current_value, go_back_when_edit_mode, switch_state, \
     generate_random_id, is_register_mode, raise_keyboard_error, get_item_by_key
+from bot.dialogs.registration.registration import get_cities
 from bot.states.games_states import AllGames, GameInspection, GameCreation
 
 
@@ -41,21 +49,21 @@ async def get_editions(**kwargs):
     }
 
 
-async def get_number_of_players_requirements(**kwargs):
-    number_of_players_requirements = [
-        {"number_of_players": "1", "id": "number_of_players_1", "minimum": 1, "maximum": 1},
-        {"number_of_players": "2", "id": "number_of_players_2", "minimum": 2, "maximum": 2},
-        {"number_of_players": "3", "id": "number_of_players_3", "minimum": 3, "maximum": 3},
-        {"number_of_players": "4", "id": "number_of_players_4", "minimum": 4, "maximum": 4},
-        {"number_of_players": "5", "id": "number_of_players_5", "minimum": 5, "maximum": 5},
-        {"number_of_players": "6", "id": "number_of_players_6", "minimum": 6, "maximum": 6},
-        {"number_of_players": "2-3", "id": "number_of_players_2_3", "minimum": 2, "maximum": 3},
-        {"number_of_players": "3-4", "id": "number_of_players_3_4", "minimum": 3, "maximum": 4},
-        {"number_of_players": "3-5", "id": "number_of_players_3_5", "minimum": 3, "maximum": 5},
-        {"number_of_players": "4-6", "id": "number_of_players_4_6", "minimum": 4, "maximum": 6},
+async def get_players_number_requirements(**kwargs):
+    players_number_requirements = [
+        {"players_number": "1", "id": "players_number_1", "minimum": 1, "maximum": 1},
+        {"players_number": "2", "id": "players_number_2", "minimum": 2, "maximum": 2},
+        {"players_number": "3", "id": "players_number_3", "minimum": 3, "maximum": 3},
+        {"players_number": "4", "id": "players_number_4", "minimum": 4, "maximum": 4},
+        {"players_number": "5", "id": "players_number_5", "minimum": 5, "maximum": 5},
+        {"players_number": "6", "id": "players_number_6", "minimum": 6, "maximum": 6},
+        {"players_number": "2-3", "id": "players_number_2_3", "minimum": 2, "maximum": 3},
+        {"players_number": "3-4", "id": "players_number_3_4", "minimum": 3, "maximum": 4},
+        {"players_number": "3-5", "id": "players_number_3_5", "minimum": 3, "maximum": 5},
+        {"players_number": "4-6", "id": "players_number_4_6", "minimum": 4, "maximum": 6},
     ]
     return {
-        "number_of_players_requirements": number_of_players_requirements,
+        "players_number_requirements": players_number_requirements,
     }
 
 
@@ -91,17 +99,16 @@ async def create_new_game_if_needed(data: dict[str, Any], dialog_manager: Dialog
 
     dialog_manager.dialog_data["game_id"] = new_game_id
     games[new_game_id] = default_game
-
+    user["master"]["games"].append(new_game_id)
 
 
 # SELECTORS
 def is_dnd_chosen(data: Optional[dict], widget: Optional[Whenable], dialog_manager: Optional[DialogManager]):
-    game_id = get_game_id_in_dialog_data_not_async(dialog_manager)
-    if games.get(game_id) is None:
-        logging.critical("can't find game by id")
-        return
+    current_game = get_game_by_id_in_dialog_data_not_async(dialog_manager)
+    if current_game is None:
+        return False
 
-    return games.get(game_id).get("system") == "D&D"
+    return current_game.get("system") == "D&D"
 
 
 # Saving game settings (ONCLICK)
@@ -218,7 +225,7 @@ async def save_edition(callback: CallbackQuery, button: Button, dialog_manager: 
     item = await get_item_by_key(data, "dnd_editions", "id", item_id, callback, "издание", False, False)
     games[game_id]["system"] = item["edition"]
 
-    next_states = {"edit": None, "register": GameCreation.choosing_number_of_players}
+    next_states = {"edit": None, "register": GameCreation.choosing_players_number}
     await switch_state(dialog_manager, next_states)
 
 
@@ -229,23 +236,23 @@ async def save_edition_from_user(message: Message, message_input: MessageInput, 
     current_system = games.get(game_id, {}).get("system", "")
     games[game_id]["system"] = current_system + "; " + user_edition
 
-    next_states = {"edit": None, "register": GameCreation.choosing_number_of_players}
+    next_states = {"edit": None, "register": GameCreation.choosing_players_number}
     await switch_state(dialog_manager, next_states)
 
 
-async def save_number_of_players(callback: CallbackQuery, button: Button, dialog_manager: DialogManager, item_id: str):
+async def save_players_number(callback: CallbackQuery, button: Button, dialog_manager: DialogManager, item_id: str):
     game_id = await get_game_id_in_dialog_data(dialog_manager)
 
-    data = await get_number_of_players_requirements()
-    item = await get_item_by_key(data, "number_of_players_requirements", "id", item_id, callback, "число игроков", False, False)
-    games[game_id]["min_number_of_players"] = item["minimum"]
-    games[game_id]["max_number_of_players"] = item["maximum"]
+    data = await get_players_number_requirements()
+    item = await get_item_by_key(data, "players_number_requirements", "id", item_id, callback, "число игроков", False, False)
+    games[game_id]["min_players_number"] = item["minimum"]
+    games[game_id]["max_players_number"] = item["maximum"]
 
     next_states = {"edit": None, "register": GameCreation.choosing_age}
     await switch_state(dialog_manager, next_states)
 
 
-save_number_of_players_from_user = generate_save_diapason_from_user(1, 20, "min_number_of_players", "max_number_of_players", {"edit": None, "register": GameCreation.choosing_age})
+save_players_number_from_user = generate_save_diapason_from_user(MIN_PLAYERS_NUMBER, MAX_PLAYERS_NUMBER, "min_players_number", "max_players_number", {"edit": None, "register": GameCreation.choosing_age})
 
 
 async def save_age(callback: CallbackQuery, button: Button, dialog_manager: DialogManager, item_id: str):
@@ -260,7 +267,7 @@ async def save_age(callback: CallbackQuery, button: Button, dialog_manager: Dial
     await switch_state(dialog_manager, next_states)
 
 
-save_age_from_user = generate_save_diapason_from_user(14, 99, "min_age", "max_age", {"edit": None, "register": GameCreation.typing_requirements})
+save_age_from_user = generate_save_diapason_from_user(MIN_AGE, MAX_AGE, "min_age", "max_age", {"edit": None, "register": GameCreation.typing_requirements})
 
 
 save_requirements = generate_save_message_from_user_no_formatting_game("requirements", {"edit": None, "register": GameCreation.typing_description})
@@ -402,37 +409,43 @@ game_creation_dialog = Dialog(
     ),
     Window(
         Const("На сколько игроков рассчитано ваше приключение? Выберите одну из предоставленных опций или укажите свою.\nВведите минимальное и максимальное количество через черту, например: 3-5, 2+, 6-"),
-        Jinja("\n<b>Текущее значение</b>: {{min_number_of_players}}-{{max_number_of_players}}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{min_players_number}}-{{max_players_number}}", when=need_to_display_current_value_and_min_and_max_provided_players_number),
+        Jinja("\n<b>Текущее значение</b>: {{min_players_number}}+", when=need_to_display_current_value_and_only_min_provided_players_number),
+        Jinja("\n<b>Текущее значение</b>: {{max_players_number}}-", when=need_to_display_current_value_and_only_max_provided_players_number),
+        Jinja("\n<b>Текущее значение</b>: Отсутствуют", when=need_to_display_current_value_and_nothing_provided_players_number),
 
         Column(Select(
-            text=Format("{item[number_of_players]}"),
-            id="number_of_players_select_game_creation",
+            text=Format("{item[players_number]}"),
+            id="players_number_select_game_creation",
             item_id_getter=lambda item: item["id"],
-            on_click=save_number_of_players,
-            items="number_of_players_requirements",
+            items="players_number_requirements",
+            on_click=save_players_number,
         )),
-        MessageInput(func=save_number_of_players_from_user, content_types=[ContentType.TEXT]),
+        MessageInput(func=save_players_number_from_user, content_types=[ContentType.TEXT]),
 
         go_back_when_edit_mode,
-        getter=get_number_of_players_requirements,
-        state=GameCreation.choosing_number_of_players,
+        state=GameCreation.choosing_players_number,
+        getter=get_players_number_requirements,
     ),
     Window(
         Const("Игроков какого возраста вы ищите? Выберите одну из предоставленных опций или укажите свою.\nВведите минимальный и максимальный возраст через черту, например: 30-35, 25+, 40-"),
-        Jinja("\n<b>Текущее значение</b>: {{min_age}}-{{max_age}}", when=need_to_display_current_value),
+        Jinja("\n<b>Текущее значение</b>: {{min_age}}-{{max_age}}", when=need_to_display_current_value_and_min_and_max_provided_age),
+        Jinja("\n<b>Текущее значение</b>: {{min_age}}+", when=need_to_display_current_value_and_only_min_provided_age),
+        Jinja("\n<b>Текущее значение</b>: {{max_age}}-", when=need_to_display_current_value_and_only_max_provided_age),
+        Jinja("\n<b>Текущее значение</b>: Отсутствуют", when=need_to_display_current_value_and_nothing_provided_age),
 
         Column(Select(
             text=Format("{item[age]}"),
             id="age_select_game_creation",
             item_id_getter=lambda item: item["id"],
-            on_click=save_age,
             items="age_requirements",
+            on_click=save_age,
         )),
         MessageInput(func=save_age_from_user, content_types=[ContentType.TEXT]),
 
         go_back_when_edit_mode,
-        getter=get_age_requirements,
         state=GameCreation.choosing_age,
+        getter=get_age_requirements,
     ),
     Window(
         Const("Каким требованиям должны удовлетворять игроки, которых вы ищите?"),

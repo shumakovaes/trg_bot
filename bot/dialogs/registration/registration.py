@@ -79,8 +79,11 @@ async def save_age(message: Message, message_input: MessageInput, dialog_manager
         return
 
     int_age = int(str_age)
-    if int_age > 99 or int_age < 14:
+    if int_age < 14:
         await message.answer("Чтобы пользоваться ботом, вы должны быть старше 14 лет.")
+        return
+    if int_age > 99:
+        await message.answer("Введите ваш настоящий возраст, если вы старше 99 лет, введите 99.")
         return
 
     user["general"]["age"] = int_age

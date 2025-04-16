@@ -40,8 +40,8 @@ game = {
     "format": "Оффлайн",
     "type": "Ваншот",
     "system": "D&D 5e",
-    "min_number_of_players": 3,
-    "max_number_of_players": 4,
+    "min_players_number": 3,
+    "max_players_number": 4,
     "requirements": "Дожить",
     "min_age": 80,
     "max_age": 99,
@@ -61,8 +61,8 @@ default_game = {
     "format": "",
     "type": "",
     "system": "",
-    "min_number_of_players": 0,
-    "max_number_of_players": 0,
+    "min_players_number": 0,
+    "max_players_number": 0,
     "requirements": "",
     "min_age": 14,
     "max_age": 99,
@@ -89,6 +89,13 @@ popular_systems = [
     {"system": "Cyberpunk", "id": "system_cyberpunk"},
     {"system": "GURPS", "id": "system_gurps"},
 ]
+
+
+# CONSTANTS
+MIN_AGE = 14
+MAX_AGE = 99
+MIN_PLAYERS_NUMBER = 1
+MAX_PLAYERS_NUMBER = 20
 
 
 # Passing arguments to dialog (GETTERS)
@@ -118,3 +125,4 @@ async def get_master_games(**kwargs):
         game_title_and_status = {"status": games[game_id]["status"], "title": games[game_id]["title"]}
         master_games.append(game_title_and_status)
     return {"games": master_games}
+

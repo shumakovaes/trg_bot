@@ -9,8 +9,9 @@ from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Group, Row, PrevPage, CurrentPage, NextPage
 from aiogram_dialog.widgets.text import List, Format, Const, Multi, Jinja
 
-from bot.db.current_requests import user, games, default_game
-from bot.dialogs.general_tools import switch_state
+from bot.db.current_requests import user, games, default_game, MAX_AGE, MIN_AGE, MIN_PLAYERS_NUMBER, \
+    MAX_PLAYERS_NUMBER
+from bot.dialogs.general_tools import switch_state, need_to_display_current_value
 from bot.states.games_states import GameCreation, GameInspection
 
 # WIDGETS
@@ -32,40 +33,46 @@ games_navigation = Group(
 
 
 def generate_game_description() -> Multi:
-    game_format = Format("{format}").text
-    def is_game_online(data: Optional[dict], widget: Optional[Whenable], dialog_manager: Optional[DialogManager]):
-        return game_format == "Онлайн"
-
-
-    def is_game_offline(data: Optional[dict], widget: Optional[Whenable], dialog_manager: Optional[DialogManager]):
-        return game_format == "Оффлайн"
-
-
     game_description = Multi(
         Jinja(
             "<i>Статус: {{status}}</i>\n\n" +
             "<b>{{title}}</b>\n" +
-            "<b>Формат</b>: {{format}}\n" +
             "<b>Цена</b>: {{cost}}\n" +
-            "<b>Количество игроков</b>: {{number_of_players}}\n" +
-            "<b>Время проведения</b>: {{time}}\n\n"
+            "<b>Формат</b>: {{format}}\n"
         ),
         Jinja(
-            text="<b>Место проведения</b>: {{place}}",
+            text="<b>Место проведения</b>: {{place}}\n",
             when=is_game_offline,
         ),
         Jinja(
-            text="<b>Платформа</b>: {{platform}}",
+            text="<b>Платформа</b>: {{platform}}\n",
             when=is_game_online,
         ),
         Jinja(
+            text="<b>Время проведения</b>: {{time}}\n\n",
+        ),
+        Jinja("<b>Число игроков</b>: {{min_players_number}}-{{max_players_number}}\n", when=min_and_max_provided_players_number),
+        Jinja("<b>Число игроков</b>: {{min_players_number}}+\n", when=only_min_provided_players_number),
+        Jinja("<b>Число игроков</b>: {{max_players_number}}-\n", when=only_max_provided_players_number),
+        Jinja("<b>Число игроков</b>: Отсутствуют\n", when=nothing_provided_players_number),
+        Jinja(
             "<b>Тип</b>: {{type}}\n" +
             "<b>Система и издание</b>: {{system}}\n" +
-            "<b>Описание</b>:\n {{description}}\n\n" +
-            "<b>Возраст</b>: {{age}}\n" +
+            "<b>Описание</b>:\n {{description}}\n\n"
+        ),
+
+        Jinja("<b>Возраст</b>: {{min_age}}-{{max_age}}\n",
+              when=min_and_max_provided_age),
+        Jinja("<b>Возраст</b>: {{min_age}}+\n",
+              when=only_min_provided_age),
+        Jinja("<b>Возраст</b>: {{max_age}}-\n",
+              when=only_max_provided_age),
+        Jinja("<b>Возраст</b>: Любой\n",
+              when=nothing_provided_age),
+        Jinja(
             "<b>Требования к игрокам</b>: {{requirements}}\n"
         ),
-        sep='',
+        sep='\n',
     )
 
     return game_description
@@ -74,7 +81,7 @@ def generate_game_description() -> Multi:
 # HELPER FUNCTION
 async def get_game_by_id(dialog_manager: DialogManager, game_id: Optional[str]):
     if game_id is None:
-        logging.critical("cannot find game id in start data")
+        logging.critical("cannot find game id {}".format(game_id))
         await dialog_manager.done()
         return None
 
@@ -105,6 +112,31 @@ def get_game_id_in_dialog_data_not_async(dialog_manager: DialogManager):
     return game_id
 
 
+def get_game_by_id_in_dialog_data_not_async(dialog_manager: DialogManager, **kwargs):
+    game_id = get_game_id_in_dialog_data_not_async(dialog_manager)
+
+    current_game = games.get(game_id)
+    if current_game is None:
+        logging.critical("cannot find game with id {}".format(game_id))
+        return None
+
+    return current_game
+
+def is_less(x: int, y: int) -> bool:
+    return x < y
+
+
+def is_less_or_equal(x: int, y: int) -> bool:
+    return x <= y
+
+
+def is_more(x: int, y: int) -> bool:
+    return x > y
+
+
+def is_more_or_equal(x: int, y: int) -> bool:
+    return x >= y
+
 
 # GETTERS
 async def get_game_by_id_in_start_data(dialog_manager: DialogManager, **kwargs):
@@ -128,7 +160,11 @@ def generate_check_game(rights: str):
         if str_index is None or not str_index.isdigit():
             await message.answer("Вам необходимо ввести число.")
             return
+
         index = int(str_index)
+        games_number = len(user[rights]["games"])
+        if index > games_number or index < 0:
+            await message.answer("Введите число, соответствующее индексу игры (от 1 до {}).".format(games_number))
 
         await dialog_manager.start(GameInspection.checking_game, data={"game_id": user[rights]["games"][index - 1], "rights": rights})
 
@@ -157,58 +193,153 @@ def generate_save_diapason_from_user(min_value: int, max_value: int, min_value_k
             await message.answer("Сообщение не должно быть пустым.")
             return
 
-        user_number_of_players = message.text.strip(". \"\'")
-        if user_number_of_players == "":
+        user_players_number = message.text.strip(". \"\'")
+        if user_players_number == "":
             await message.answer("Сообщение не должно состоять из одних символов.")
             return
         game_id = await get_game_id_in_dialog_data(dialog_manager)
 
-        if user_number_of_players[-1] == '-' or user_number_of_players[-1] == '+':
+        if user_players_number[-1] == '-' or user_players_number[-1] == '+':
             sign_to_word = {"+": "плюсом", "-": "минусом"}
-            sign = user_number_of_players[-1]
+            sign = user_players_number[-1]
             word_sign = sign_to_word[sign]
 
-            user_number_of_players = user_number_of_players[:-1]
-            if not user_number_of_players.isdigit():
+            user_players_number = user_players_number[:-1]
+            if not user_players_number.isdigit():
                 await message.answer("Значение перед {} должно быть числом.".format(word_sign))
                 return
 
-            user_number_of_players_int = int(user_number_of_players)
-            if user_number_of_players_int > max_value or user_number_of_players_int < min_value:
+            user_players_number_int = int(user_players_number)
+            if user_players_number_int > max_value or user_players_number_int < min_value:
                 await message.answer("Значение перед {} должно быть числом между {} и {}.".format(word_sign, min_value, max_value))
                 return
 
             if sign == '-':
                 games[game_id][min_value_key] = min_value
-                games[game_id][max_value_key] = user_number_of_players_int
+                games[game_id][max_value_key] = user_players_number_int
                 await switch_state(dialog_manager, next_states)
+                return
             elif sign == '+':
-                games[game_id][min_value_key] = user_number_of_players_int
+                games[game_id][min_value_key] = user_players_number_int
                 games[game_id][max_value_key] = max_value
                 await switch_state(dialog_manager, next_states)
+                return
             else:
                 logging.critical("unexpected sign: {}".format(sign))
                 await message.answer("Что-то пошло не так.")
                 await dialog_manager.done()
                 return
 
-        user_number_of_players_list = list(user_number_of_players.split("-"))
-        if len(user_number_of_players_list) != 2:
+        user_players_number_list = list(user_players_number.split("-"))
+        if len(user_players_number_list) != 2:
             await message.answer("Используйте ровно один дефис.")
             return
-        if not user_number_of_players_list[0].isdigit() or not user_number_of_players_list[1].isdigit():
+        if not user_players_number_list[0].isdigit() or not user_players_number_list[1].isdigit():
             await message.answer("Введите числа через дефис.")
             return
 
-        min_number_of_players, max_number_of_players = map(int, user_number_of_players_list)
-        if min_number_of_players < min_value or max_number_of_players < min_value or min_number_of_players > max_value or max_number_of_players > max_value:
+        min_players_number, max_players_number = map(int, user_players_number_list)
+        if min_players_number < min_value or max_players_number < min_value or min_players_number > max_value or max_players_number > max_value:
             await message.answer("Числа должны лежать в диапазоне от {} до {}.".format(min_value, max_value))
             return
-        if min_number_of_players > max_number_of_players:
-            min_number_of_players, max_number_of_players = max_number_of_players, min_number_of_players
+        if min_players_number > max_players_number:
+            min_players_number, max_players_number = max_players_number, min_players_number
 
-        games[game_id][min_value_key] = min_number_of_players
-        games[game_id][max_value_key] = max_number_of_players
+        games[game_id][min_value_key] = min_players_number
+        games[game_id][max_value_key] = max_players_number
         await switch_state(dialog_manager, next_states)
 
     return save_diapason_from_user
+
+
+# SELECTORS GENERATORS
+def generate_generate_is_diapason_provided(min_comparator, max_comparator):
+    def generate_is_diapason_provided(min_parameter: str, max_parameter: str, min_value: int, max_value: int):
+        def is_diapason_provided(data: dict, widget: Whenable, dialog_manager: DialogManager):
+            current_game = get_game_by_id_in_dialog_data_not_async(dialog_manager)
+            if current_game is None:
+                return False
+
+            current_min_value = current_game.get(min_parameter)
+            current_max_value = current_game.get(max_parameter)
+
+            if current_min_value is None:
+                logging.critical("cannot get game parameter: {}".format(min_parameter))
+                return False
+            if current_max_value is None:
+                logging.critical("cannot get game parameter: {}".format(max_parameter))
+                return False
+
+            return min_comparator(min_value, current_min_value) and max_comparator(current_max_value, max_value)
+
+        return is_diapason_provided
+
+    return generate_is_diapason_provided
+
+
+def add_check_of_need_to_display_current_value(selector):
+    def need_to_display_current_value_selector(data: dict, widget: Whenable, dialog_manager: DialogManager):
+        return need_to_display_current_value(data, widget, dialog_manager) and selector(data, widget, dialog_manager)
+
+    return need_to_display_current_value_selector
+
+
+generate_min_and_max_provided = generate_generate_is_diapason_provided(is_less, is_more)
+
+
+generate_only_min_provided = generate_generate_is_diapason_provided(is_less, is_less_or_equal)
+
+
+generate_max_provided = generate_generate_is_diapason_provided(is_more_or_equal, is_more)
+
+
+generate_nothing_provided = generate_generate_is_diapason_provided(is_more_or_equal, is_less_or_equal)
+
+
+# SELECTORS
+min_and_max_provided_players_number = generate_min_and_max_provided("min_players_number", "max_players_number", MIN_PLAYERS_NUMBER, MAX_PLAYERS_NUMBER)
+need_to_display_current_value_and_min_and_max_provided_players_number = add_check_of_need_to_display_current_value(min_and_max_provided_players_number)
+
+
+only_min_provided_players_number = generate_only_min_provided("min_players_number", "max_players_number", MIN_PLAYERS_NUMBER, MAX_PLAYERS_NUMBER)
+need_to_display_current_value_and_only_min_provided_players_number = add_check_of_need_to_display_current_value(only_min_provided_players_number)
+
+
+only_max_provided_players_number = generate_max_provided("min_players_number", "max_players_number", MIN_PLAYERS_NUMBER, MAX_PLAYERS_NUMBER)
+need_to_display_current_value_and_only_max_provided_players_number = add_check_of_need_to_display_current_value(only_max_provided_players_number)
+
+
+nothing_provided_players_number = generate_nothing_provided("min_players_number", "max_players_number", MIN_PLAYERS_NUMBER, MAX_PLAYERS_NUMBER)
+need_to_display_current_value_and_nothing_provided_players_number = add_check_of_need_to_display_current_value(nothing_provided_players_number)
+
+
+min_and_max_provided_age = generate_min_and_max_provided("min_age", "max_age", MIN_AGE, MAX_AGE)
+need_to_display_current_value_and_min_and_max_provided_age = add_check_of_need_to_display_current_value(min_and_max_provided_age)
+
+
+only_min_provided_age = generate_only_min_provided("min_age", "max_age", MIN_AGE, MAX_AGE)
+need_to_display_current_value_and_only_min_provided_age = add_check_of_need_to_display_current_value(only_min_provided_age)
+
+
+only_max_provided_age = generate_max_provided("min_age", "max_age", MIN_AGE, MAX_AGE)
+need_to_display_current_value_and_only_max_provided_age = add_check_of_need_to_display_current_value(only_max_provided_age)
+
+
+nothing_provided_age = generate_nothing_provided("min_age", "max_age", MIN_AGE, MAX_AGE)
+need_to_display_current_value_and_nothing_provided_age = add_check_of_need_to_display_current_value(nothing_provided_age)
+
+
+def is_game_online(data: Optional[dict], widget: Optional[Whenable], dialog_manager: Optional[DialogManager]):
+    current_game = get_game_by_id_in_dialog_data_not_async(dialog_manager)
+    if current_game is None:
+        return False
+
+    return current_game.get("format") == "Онлайн"
+
+
+def is_game_offline(data: Optional[dict], widget: Optional[Whenable], dialog_manager: Optional[DialogManager]):
+    current_game = get_game_by_id_in_dialog_data_not_async(dialog_manager)
+    if current_game is None:
+        return False
+
+    return current_game.get("format") == "Оффлайн"
