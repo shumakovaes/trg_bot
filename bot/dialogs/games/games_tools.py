@@ -32,10 +32,16 @@ games_navigation = Group(
 )
 
 
-def generate_game_description() -> Multi:
+def generate_game_description(show_status: bool) -> Multi:
+    def is_need_display_status(data: dict, widget: Whenable, dialog_manager: DialogManager):
+        return show_status
+
     game_description = Multi(
         Jinja(
-            "<i>Статус: {{status}}</i>\n\n" +
+            text="<i>Статус: {{status}}</i>\n\n",
+            when=is_need_display_status,
+        ),
+        Jinja(
             "<b>{{title}}</b>\n" +
             "<b>Цена</b>: {{cost}}\n" +
             "<b>Формат</b>: {{format}}\n"
@@ -61,13 +67,13 @@ def generate_game_description() -> Multi:
             "<b>Описание</b>:\n {{description}}\n\n"
         ),
 
-        Jinja("<b>Возраст</b>: {{min_age}}-{{max_age}}\n",
+        Jinja("<b>Возраст игроков</b>: {{min_age}}-{{max_age}}\n",
               when=min_and_max_provided_age),
-        Jinja("<b>Возраст</b>: {{min_age}}+\n",
+        Jinja("<b>Возраст игроков</b>: {{min_age}}+\n",
               when=only_min_provided_age),
-        Jinja("<b>Возраст</b>: {{max_age}}-\n",
+        Jinja("<b>Возраст игроков</b>: {{max_age}}-\n",
               when=only_max_provided_age),
-        Jinja("<b>Возраст</b>: Любой\n",
+        Jinja("<b>Возраст игроков</b>: Любой\n",
               when=nothing_provided_age),
         Jinja(
             "<b>Требования к игрокам</b>: {{requirements}}\n"

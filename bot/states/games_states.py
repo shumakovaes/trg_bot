@@ -11,11 +11,12 @@ class GameInspection(StatesGroup):
     # General
     checking_game = State()
     rating_game = State()
-    # Player
-    exit_group_confirmation = State()
+    delete_game_confirmation = State()
+    archive_game_confirmation = State()
     # Master
     choosing_what_to_edit = State()
-    publishing_confirmation = State()
+    set_status_public_confirmation = State()
+    set_status_done_confirmation = State()
     checking_applications = State()
     managing_group = State()
 

@@ -29,7 +29,7 @@ users = {
 
 # in player/master there are only ids of users
 game = {
-    "status": "создана",
+    "status": "Набор игроков закрыт",
     "master": "id_000000",
     "players": ["id_000000"],
     "title": "Тестовая игра",
@@ -50,7 +50,7 @@ game = {
 }
 
 default_game = {
-    "status": "",
+    "status": "Набор игроков открыт",
     "master": "id_000000",
     "players": [""],
     "title": "",
