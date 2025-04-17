@@ -16,20 +16,27 @@ from bot.states.games_states import GameCreation, GameInspection
 
 # WIDGETS
 # TODO: add filters
-games_list = List(
-    Format("{pos}. {item[title]} - {item[status]}"),
-    items="games",
-    page_size=10,
-    id="scroll_games",
-)
+def generate_games_list(elements: str):
+    games_list = List(
+        Format("{pos}. {item[title]} - {item[status]}"),
+        items="games",
+        page_size=10,
+        id="scroll_games_{}".format(elements),
+    )
 
-games_navigation = Group(
-    Row(
-        PrevPage("scroll_games", text=Const("<")),
-        CurrentPage("scroll_games", text=Format("{current_page1}/{pages}")),
-        NextPage("scroll_games", text=Const(">"))
-    ),
-)
+    return games_list
+
+
+def generate_games_navigation(elements: str):
+    games_navigation = Group(
+        Row(
+            PrevPage("scroll_games_{}".format(elements), text=Const("<")),
+            CurrentPage("scroll_games_{}".format(elements), text=Format("{current_page1}/{pages}")),
+            NextPage("scroll_games_{}".format(elements), text=Const(">"))
+        ),
+    )
+
+    return games_navigation
 
 
 def generate_game_description(show_status: bool) -> Multi:
@@ -160,7 +167,7 @@ async def get_game_by_id_in_dialog_data(dialog_manager: DialogManager, **kwargs)
 
 
 # ONCLICK GENERATORS
-def generate_check_game(rights: str):
+def generate_check_game(rights: str, folder: str):
     async def check_game(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
         str_index = message.text.strip(" .;'\"")
         if str_index is None or not str_index.isdigit():
@@ -172,7 +179,7 @@ def generate_check_game(rights: str):
         if index > games_number or index < 0:
             await message.answer("Введите число, соответствующее индексу игры (от 1 до {}).".format(games_number))
 
-        await dialog_manager.start(GameInspection.checking_game, data={"game_id": user[rights]["games"][index - 1], "rights": rights})
+        await dialog_manager.start(GameInspection.checking_game, data={"game_id": user[rights]["games"][index - 1], "rights": rights, "folder": folder})
 
     return check_game
 
