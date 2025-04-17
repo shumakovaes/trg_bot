@@ -4,6 +4,7 @@ from aiogram.types import Message, BotCommand
 
 from aiogram_dialog import DialogManager, StartMode
 
+from bot.dialogs.general_tools import start_game_creation
 # from bot.keyboards.kb_start import make_new_form_keyboard
 from bot.states.registration_states import Registration, Profile, MasterForm, PlayerForm
 from bot.states.games_states import AllGames, GameCreation
@@ -68,7 +69,7 @@ async def check_profile(message: Message, dialog_manager: DialogManager):
 
 @router.message(Command("create"))
 async def check_profile(message: Message, dialog_manager: DialogManager):
-    await dialog_manager.start(GameCreation.typing_title, data={"mode": "register"})
+    await start_game_creation(dialog_manager)
 
 
 @router.message(Command("cancel"))

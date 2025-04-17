@@ -12,6 +12,7 @@ from aiogram_dialog.widgets.text import Const
 from typing_extensions import Any
 
 from bot.db.current_requests import user
+from bot.states.games_states import GameCreation
 
 
 # RAISING ERRORS
@@ -64,6 +65,20 @@ async def generate_random_id():
     random_id = str(random.randint(0, max_id - 1))
 
     return "id_" + '0' * (6 - len(random_id)) + random_id
+
+
+async def start_game_creation(dialog_manager: DialogManager):
+    try:
+        is_defaults_filled = user["master"]["is_filled"]
+    except KeyError:
+        logging.critical("missing is_filled field")
+        await dialog_manager.done()
+        return
+
+    if is_defaults_filled:
+        await dialog_manager.start(state=GameCreation.choosing_default, data={"mode": "register"})
+    else:
+        await dialog_manager.start(GameCreation.typing_title, data={"mode": "register"})
 
 
 # Finds item with given value in data from getter

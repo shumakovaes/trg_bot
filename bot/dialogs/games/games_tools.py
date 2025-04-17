@@ -92,6 +92,39 @@ def generate_game_description(show_status: bool) -> Multi:
 
 
 # HELPER FUNCTION
+# HELPERS
+async def is_default_value_not_empty(dialog_manager: DialogManager, value: str):
+    default_value = await get_default_value(dialog_manager, value)
+
+    return default_value != ""
+
+
+async def is_default_settings_value(dialog_manager: DialogManager, value: str):
+    return dialog_manager.dialog_data.get("default_settings") == value
+
+
+async def is_need_to_be_skipped(dialog_manager: DialogManager, value: str):
+    return await is_default_settings_value(dialog_manager, "all") and await is_default_value_not_empty(dialog_manager, value)
+
+
+async def get_default_value(dialog_manager: DialogManager, value: str):
+    default_data = dialog_manager.dialog_data.get("default_data")
+    if default_data is None:
+        logging.critical("no default data was provided")
+        await dialog_manager.done()
+        return
+
+    try:
+        default_value = default_data[value]
+    except KeyError:
+        logging.critical("{} was not provided".format(value))
+        await dialog_manager.done()
+        return
+
+    return default_value
+
+
+
 async def get_game_by_id(dialog_manager: DialogManager, game_id: Optional[str]):
     if game_id is None:
         logging.critical("cannot find game id {}".format(game_id))
@@ -200,7 +233,7 @@ def generate_save_message_from_user_no_formatting_game(parameter: str, next_stat
     return save_message_from_user_no_formatting
 
 
-def generate_save_diapason_from_user(min_value: int, max_value: int, min_value_key: str, max_value_key: str, next_states: dict[str, Optional[State]]):
+def generate_save_diapason_from_user(min_value: int, max_value: int, min_value_key: str, max_value_key: str, next_states: dict[str, Optional[State]], need_check_for_default_values: bool):
     async def save_diapason_from_user(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
         if message.text is None:
             await message.answer("Сообщение не должно быть пустым.")
@@ -260,6 +293,17 @@ def generate_save_diapason_from_user(min_value: int, max_value: int, min_value_k
 
         games[game_id][min_value_key] = min_players_number
         games[game_id][max_value_key] = max_players_number
+
+        if need_check_for_default_values and await is_need_to_be_skipped(dialog_manager, "default_requirements"):
+            game_id = await get_game_id_in_dialog_data(dialog_manager)
+
+            default_requirements = await get_default_value(dialog_manager, "default_requirements")
+
+            games[game_id]["requirements"] = default_requirements
+            next_states_skipped = {"edit": None, "register": GameCreation.typing_description}
+
+            await switch_state(dialog_manager, next_states_skipped)
+
         await switch_state(dialog_manager, next_states)
 
     return save_diapason_from_user

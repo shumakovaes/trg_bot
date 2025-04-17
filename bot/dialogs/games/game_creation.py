@@ -19,7 +19,8 @@ from bot.dialogs.games.games_tools import generate_game_description, generate_sa
     need_to_display_current_value_and_only_max_provided_players_number, \
     need_to_display_current_value_and_nothing_provided_players_number, \
     need_to_display_current_value_and_min_and_max_provided_age, need_to_display_current_value_and_only_min_provided_age, \
-    need_to_display_current_value_and_only_max_provided_age, need_to_display_current_value_and_nothing_provided_age
+    need_to_display_current_value_and_only_max_provided_age, need_to_display_current_value_and_nothing_provided_age, \
+    get_default_value, is_need_to_be_skipped
 from bot.dialogs.general_tools import need_to_display_current_value, go_back_when_edit_mode, switch_state, \
     generate_random_id, is_register_mode, raise_keyboard_error, get_item_by_key
 from bot.dialogs.registration.registration import get_cities
@@ -27,6 +28,26 @@ from bot.states.games_states import AllGames, GameInspection, GameCreation
 
 
 # Passing arguments to the dialog (GETTERS)
+async def get_default_cost(dialog_manager: DialogManager, **kwargs):
+    default_cost = await get_default_value(dialog_manager, "default_cost")
+    return {"default_cost": default_cost}
+
+
+async def get_default_place(dialog_manager: DialogManager, **kwargs):
+    default_place = await get_default_value(dialog_manager, "default_place")
+    return {"default_place": default_place}
+
+
+async def get_default_platform(dialog_manager: DialogManager, **kwargs):
+    default_platform = await get_default_value(dialog_manager, "default_platform")
+    return {"default_platform": default_platform}
+
+
+async def get_default_requirements(dialog_manager: DialogManager, **kwargs):
+    default_requirements = await get_default_value(dialog_manager, "default_requirements")
+    return {"default_requirements": default_requirements}
+
+
 async def get_systems(**kwargs):
     return {
         "popular_systems": popular_systems,
@@ -103,6 +124,9 @@ async def create_new_game_if_needed(data: dict[str, Any], dialog_manager: Dialog
     games[new_game_id] = default_game
     user["master"]["games"].append(new_game_id)
 
+    dialog_manager.dialog_data["default_data"] = {}
+    dialog_manager.dialog_data["default_settings"] = "no"
+
 
 # SELECTORS
 def is_dnd_chosen(data: Optional[dict], widget: Optional[Whenable], dialog_manager: Optional[DialogManager]):
@@ -113,8 +137,81 @@ def is_dnd_chosen(data: Optional[dict], widget: Optional[Whenable], dialog_manag
     return current_game.get("system") == "D&D"
 
 
+def generate_need_to_display_default_value(value: str):
+    def need_to_display_default_value(data: Optional[dict], widget: Optional[Whenable],
+                                 dialog_manager: Optional[DialogManager]):
+        default_data = dialog_manager.dialog_data.get("default_data")
+        if default_data is None:
+            logging.critical("no default data was provided")
+            return False
+
+        default_settings = dialog_manager.dialog_data.get("default_settings")
+        if default_settings is None:
+            logging.critical("no default settings was provided")
+            return False
+
+        return default_settings == "choose" and default_data.get(f"default_{value}", "") != ""
+
+    return need_to_display_default_value
+
+
+need_to_display_default_cost = generate_need_to_display_default_value("cost")
+
+
+need_to_display_default_place = generate_need_to_display_default_value("place")
+
+
+need_to_display_default_platform = generate_need_to_display_default_value("platform")
+
+
+need_to_display_default_requirements = generate_need_to_display_default_value("requirements")
+
+
 # Saving game settings (ONCLICK)
-save_title = generate_save_message_from_user_no_formatting_game("title", {"edit": None, "register": GameCreation.choosing_cost})
+async def save_default_settings(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
+    _, default_settings = button.widget_id.split("_", 1)
+    allowed_defaults = ["all", "choose", "no"]
+
+    if not default_settings in allowed_defaults:
+        await raise_keyboard_error(callback, "применение значений по умолчанию")
+        return
+
+    dialog_manager.dialog_data["default_settings"] = default_settings
+    if default_settings != "no":
+        try:
+            dialog_manager.dialog_data["default_data"] = {
+                "default_cost": user["master"]["cost"],
+                "default_place": user["master"]["place"],
+                "default_platform": user["master"]["platform"],
+                "default_requirements": user["master"]["requirements"]
+            }
+        except KeyError:
+            logging.critical("cannot get default settings")
+            await dialog_manager.done()
+            return
+
+    next_states = {"edit": None, "register": GameCreation.typing_title}
+    await switch_state(dialog_manager, next_states)
+
+
+async def save_title(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
+    game_id = await get_game_id_in_dialog_data(dialog_manager)
+
+    try:
+        games[game_id]["title"] = message.text
+    except KeyError:
+        logging.critical("cannot set game title")
+        await dialog_manager.done()
+        return
+
+    next_states = {"edit": None, "register": GameCreation.choosing_cost}
+    if await is_need_to_be_skipped(dialog_manager, "default_cost"):
+        default_cost = await get_default_cost(dialog_manager)
+
+        games[game_id]["cost"] = default_cost
+        next_states = {"edit": None, "register": GameCreation.choosing_format}
+
+    await switch_state(dialog_manager, next_states)
 
 
 async def save_cost(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
@@ -127,6 +224,11 @@ async def save_cost(callback: CallbackQuery, button: Button, dialog_manager: Dia
     elif button.widget_id == "cost_paid":
         games[game_id]["cost"] = "Платно"
         next_states = {"edit": GameCreation.typing_cost, "register": GameCreation.typing_cost}
+    elif button.widget_id == "cost_default":
+        default_cost = await get_default_cost(dialog_manager)
+
+        games[game_id]["cost"] = default_cost
+        next_states = {"edit": None, "register": GameCreation.choosing_format}
     else:
         await raise_keyboard_error(callback, "стоимость")
         return
@@ -159,8 +261,18 @@ async def save_format(callback: CallbackQuery, button: Button, dialog_manager: D
 
     if session_format == "Оффлайн":
         next_states = {"edit": GameCreation.typing_place, "register": GameCreation.typing_place}
+        if await is_need_to_be_skipped(dialog_manager, "default_place"):
+            default_place = await get_default_place(dialog_manager)
+
+            games[game_id]["place"] = default_place
+            next_states = {"edit": None, "register": GameCreation.typing_time}
     else:
         next_states = {"edit": GameCreation.typing_platform, "register": GameCreation.typing_platform}
+        if await is_need_to_be_skipped(dialog_manager, "default_platform"):
+            default_platform = await get_default_platform(dialog_manager)
+
+            games[game_id]["platform"] = default_platform
+            next_states = {"edit": None, "register": GameCreation.typing_time}
 
     await switch_state(dialog_manager, next_states)
 
@@ -168,7 +280,30 @@ async def save_format(callback: CallbackQuery, button: Button, dialog_manager: D
 save_place = generate_save_message_from_user_no_formatting_game("place", {"edit": None, "register": GameCreation.typing_time})
 
 
+# TODO: generate default savers
+async def save_default_place(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
+    game_id = await get_game_id_in_dialog_data(dialog_manager)
+
+    default_place = await get_default_place(dialog_manager)
+
+    games[game_id]["place"] = default_place
+    next_states = {"edit": None, "register": GameCreation.typing_time}
+
+    await switch_state(dialog_manager, next_states)
+
+
 save_platform = generate_save_message_from_user_no_formatting_game("platform", {"edit": None, "register": GameCreation.typing_time})
+
+
+async def save_default_platform(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
+    game_id = await get_game_id_in_dialog_data(dialog_manager)
+
+    default_platform = await get_default_platform(dialog_manager)
+
+    games[game_id]["platform"] = default_platform
+    next_states = {"edit": None, "register": GameCreation.typing_time}
+
+    await switch_state(dialog_manager, next_states)
 
 
 save_time = generate_save_message_from_user_no_formatting_game("time", {"edit": None, "register": GameCreation.choosing_type})
@@ -254,7 +389,7 @@ async def save_players_number(callback: CallbackQuery, button: Button, dialog_ma
     await switch_state(dialog_manager, next_states)
 
 
-save_players_number_from_user = generate_save_diapason_from_user(MIN_PLAYERS_NUMBER, MAX_PLAYERS_NUMBER, "min_players_number", "max_players_number", {"edit": None, "register": GameCreation.choosing_age})
+save_players_number_from_user = generate_save_diapason_from_user(MIN_PLAYERS_NUMBER, MAX_PLAYERS_NUMBER, "min_players_number", "max_players_number", {"edit": None, "register": GameCreation.choosing_age}, False)
 
 
 async def save_age(callback: CallbackQuery, button: Button, dialog_manager: DialogManager, item_id: str):
@@ -266,14 +401,32 @@ async def save_age(callback: CallbackQuery, button: Button, dialog_manager: Dial
     games[game_id]["max_age"] = item["maximum"]
 
     next_states = {"edit": None, "register": GameCreation.typing_requirements}
+    if await is_need_to_be_skipped(dialog_manager, "default_requirements"):
+        game_id = await get_game_id_in_dialog_data(dialog_manager)
+
+        default_requirements = await get_default_requirements(dialog_manager)
+
+        games[game_id]["requirements"] = default_requirements
+        next_states = {"edit": None, "register": GameCreation.typing_description}
+
     await switch_state(dialog_manager, next_states)
 
 
-save_age_from_user = generate_save_diapason_from_user(MIN_AGE, MAX_AGE, "min_age", "max_age", {"edit": None, "register": GameCreation.typing_requirements})
+save_age_from_user = generate_save_diapason_from_user(MIN_AGE, MAX_AGE, "min_age", "max_age", {"edit": None, "register": GameCreation.typing_requirements}, True)
 
 
 save_requirements = generate_save_message_from_user_no_formatting_game("requirements", {"edit": None, "register": GameCreation.typing_description})
 
+
+async def save_default_requirements(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
+    game_id = await get_game_id_in_dialog_data(dialog_manager)
+
+    default_requirements = await get_default_requirements(dialog_manager)
+
+    games[game_id]["requirements"] = default_requirements
+    next_states = {"edit": None, "register": GameCreation.typing_description}
+
+    await switch_state(dialog_manager, next_states)
 
 save_description = generate_save_message_from_user_no_formatting_game("description", {"edit": None, "register": None})
 
@@ -290,14 +443,15 @@ async def delete_current_game(callback: CallbackQuery, button: Button, dialog_ma
     games.pop(game_id, None)
 
 
-# DO NOT DELETE COMMENTED CODE, IT IS JUST UNFINISHED
 # Game registration dialog
 game_creation_dialog = Dialog(
-    # Window(
-    #     Const(""),
-    #     Button(Const("Использовать "), id="format_both", on_click=save_default_settings),
-    #     state=GameCreation.choosing_default,
-    # ),
+    Window(
+        Const("При заполнении анкеты мастера, вы установили значения по умолчанию.\nДля каких полей их использовать? "),
+        Button(Const("Для всех"), id="default_all", on_click=save_default_settings),
+        Button(Const("Выбирать для каждого поля"), id="default_choose", on_click=save_default_settings),
+        Button(Const("Ни для каких"), id="default_no", on_click=save_default_settings),
+        state=GameCreation.choosing_default,
+    ),
     Window(
         Const("Введите название для вашей игры."),
         Jinja("\n<b>Текущее значение</b>: {{title}}", when=need_to_display_current_value),
@@ -311,12 +465,15 @@ game_creation_dialog = Dialog(
     Window(
         Const("Какие игры вы планируете проводить?"),
         Jinja("\n<b>Текущее значение</b>: {{cost}}", when=need_to_display_current_value),
+        Jinja("\n<b>Значение по умолчанию</b>: {{default_cost}}", when=need_to_display_default_cost),
 
         Button(Const("Бесплатные"), id="cost_free", on_click=save_cost),
         Button(Const("Платные"), id="cost_paid", on_click=save_cost),
+        Button(Const("Использовать значение по умолчанию"), id="cost_default", on_click=save_cost, when=need_to_display_default_cost),
 
         go_back_when_edit_mode,
         state=GameCreation.choosing_cost,
+        getter=get_default_cost,
     ),
     Window(
         Const("Сколько вы планируете брать за проведение сессии? Введите ответ в свободной форме."),
@@ -341,20 +498,26 @@ game_creation_dialog = Dialog(
     Window(
         Const("Где вы планируете проводить игры?\nПожалуйста, не приглашайте игроков к себе домой, это может быть опасно, сессии нужно проводить в публичных местах.\nТакже не стоит указывать точный адрес, эта информация будет доступна всем пользователям бота. Лучше всего указать район."),
         Jinja("\n<b>Текущее значение</b>: {{place}}", when=need_to_display_current_value),
+        Jinja("\n<b>Значение по умолчанию</b>: {{default_place}}", when=need_to_display_default_place),
 
         MessageInput(func=save_place, content_types=[ContentType.TEXT]),
+        Button(Const("Использовать значение по умолчанию"), id="place_default", on_click=save_default_place, when=need_to_display_default_place),
 
         go_back_when_edit_mode,
         state=GameCreation.typing_place,
+        getter=get_default_place,
     ),
     Window(
         Const("Какую платформу вы будете использовать для проведения игр? Укажите её и способ общения во время игры."),
         Jinja("\n<b>Текущее значение</b>: {{platform}}", when=need_to_display_current_value),
+        Jinja("\n<b>Значение по умолчанию</b>: {{default_platform}}", when=need_to_display_default_platform),
 
         MessageInput(func=save_platform, content_types=[ContentType.TEXT]),
+        Button(Const("Использовать значение по умолчанию"), id="platform_default", on_click=save_default_platform, when=need_to_display_default_platform),
 
         go_back_when_edit_mode,
         state=GameCreation.typing_platform,
+        getter=get_default_platform,
     ),
     Window(
         Const("Когда вы планируете проводить сессии? Напишите удобное для вас время в свободной форме."),
@@ -458,11 +621,14 @@ game_creation_dialog = Dialog(
     Window(
         Const("Каким требованиям должны удовлетворять игроки, которых вы ищите?"),
         Jinja("\n<b>Текущее значение</b>: {{requirements}}", when=need_to_display_current_value),
+        Jinja("\n<b>Значение по умолчанию</b>: {{default_requirements}}", when=need_to_display_default_requirements),
 
         MessageInput(func=save_requirements, content_types=[ContentType.TEXT]),
+        Button(Const("Использовать значение по умолчанию"), id="requirements_default", on_click=save_default_requirements, when=need_to_display_default_requirements),
 
         go_back_when_edit_mode,
         state=GameCreation.typing_requirements,
+        getter=get_default_requirements,
     ),
     Window(
         Const("Что ждёт игроков? В каком сеттинге будут происходить действия? Дайте описание игры."),

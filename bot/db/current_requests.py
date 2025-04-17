@@ -20,7 +20,7 @@
 user = {
     "general": {"name": "", "age": "", "city": "", "time_zone": "", "role": "", "format": "", "about_info": ""},
     "player": {"experience": "", "payment": "", "systems": [], "games": ["id_000000"], "archive": [], },
-    "master": {"experience": "", "cost": "", "place": "", "platform": "", "requirements": "", "games": ["id_000000"], "archive": []},
+    "master": {"is_filled": False, "experience": "", "cost": "", "place": "", "platform": "", "requirements": "", "games": ["id_000000"], "archive": []},
 }
 
 users = {

@@ -1,3 +1,5 @@
+import logging
+
 from aiogram.fsm.state import State
 from aiogram.types import CallbackQuery, ContentType, Message
 from aiogram_dialog import Dialog, Window, DialogManager
@@ -8,13 +10,19 @@ from aiogram_dialog.widgets.kbd import Button, Row, Column, Start, Select, Cance
     CurrentPage, NextPage
 
 from bot.db.current_requests import get_user_player, get_user_master, get_player_games, get_master_games, \
-    get_player_archive, get_master_archive
+    get_player_archive, get_master_archive, user
 from bot.dialogs.games.games_tools import generate_games_list, generate_games_navigation, generate_check_game
+from bot.dialogs.general_tools import start_game_creation
 from bot.states.games_states import AllGames, GameInspection, GameCreation
 
 
+# ONCLICK
+async def create_new_game(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
+    await start_game_creation(dialog_manager)
+
+
 def generate_folder_inspection(rights: str, folder: str, getter, state: State, back_state: State, can_create_new_games: bool) -> Window:
-    if can_create_new_games:
+    if not can_create_new_games:
         folder_inspection = Window(
             Const("Чтобы посмотреть про игру подробнее, введите текстом её номер."),
             generate_games_list(f"{rights}_{folder}"),
@@ -32,7 +40,7 @@ def generate_folder_inspection(rights: str, folder: str, getter, state: State, b
             generate_games_list(f"{rights}_{folder}"),
 
             MessageInput(func=generate_check_game(rights, folder), content_types=[ContentType.TEXT]),
-            Start(text=Const("Создать новую игру"), state=GameCreation.typing_title, id="create_game_from_all_games", data={"mode": "register"}),
+            Button(text=Const("Создать новую игру"), id="create_game_from_all_games", on_click=create_new_game),
 
             generate_games_navigation(f"{rights}_{folder}"),
             SwitchTo(text=Const("Назад"), state=back_state, id=f"back_to_checking_games_from_{rights}_{folder}"),

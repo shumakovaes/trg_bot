@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any
 
 from aiogram.types import CallbackQuery, ContentType, Message
 from aiogram_dialog import Dialog, Window, DialogManager, ShowMode
@@ -14,6 +14,11 @@ from bot.dialogs.registration.registration_tools import generate_save_user_exper
 from bot.states.registration_states import Registration, Profile, PlayerForm, MasterForm
 
 from bot.db.current_requests import user, get_user_master
+
+
+# ON START
+async def mark_form_as_filled(data: dict[str, Any], dialog_manager: DialogManager):
+    user["master"]["is_filled"] = True
 
 
 # SELECTORS
@@ -115,7 +120,7 @@ master_form_dialog = Dialog(
         Start(Const("Опыт"), state=MasterForm.choosing_experience, id="edit_experience_master", data={"mode": "edit"}),
         Start(Const("Цена"), state=MasterForm.choosing_cost, id="edit_cost_master", data={"mode": "edit"}),
         Start(Const("Место проведения"), state=MasterForm.typing_place, id="edit_place_master", data={"mode": "edit"}, when=is_user_playing_offline),
-        Start(Const("Платформа"), state=MasterForm.typing_platform, id="edit_place_master", data={"mode": "edit"}, when=is_user_playing_online),
+        Start(Const("Платформа"), state=MasterForm.typing_platform, id="edit_platform_master", data={"mode": "edit"}, when=is_user_playing_online),
         Start(Const("Требования у игрокам"), state=MasterForm.typing_requirements, id="edit_requirements_master",
               data={"mode": "edit"}),
         Start(Const("Заполнить анкету заново"), state=MasterForm.choosing_experience, id="register_again_master",
@@ -189,4 +194,5 @@ master_form_dialog = Dialog(
         state=MasterForm.typing_requirements,
     ),
     getter=get_user_master,
+    on_start=mark_form_as_filled,
 )
