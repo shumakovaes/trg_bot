@@ -29,7 +29,7 @@ users = {
 
 # in player/master there are only ids of users
 game = {
-    "status": "создана",
+    "status": "Набор игроков закрыт",
     "master": "id_000000",
     "players": ["id_000000"],
     "title": "Тестовая игра",
@@ -50,7 +50,7 @@ game = {
 }
 
 default_game = {
-    "status": "",
+    "status": "Набор игроков открыт",
     "master": "id_000000",
     "players": [""],
     "title": "",
@@ -125,4 +125,20 @@ async def get_master_games(**kwargs):
         game_title_and_status = {"status": games[game_id]["status"], "title": games[game_id]["title"]}
         master_games.append(game_title_and_status)
     return {"games": master_games}
+
+
+async def get_player_archive(**kwargs):
+    player_archive = []
+    for game_id in user["player"]["archive"]:
+        game_title_and_status = {"status": games[game_id]["status"], "title": games[game_id]["title"]}
+        player_archive.append(game_title_and_status)
+    return {"games": player_archive}
+
+
+async def get_master_archive(**kwargs):
+    master_archive = []
+    for game_id in user["master"]["archive"]:
+        game_title_and_status = {"status": games[game_id]["status"], "title": games[game_id]["title"]}
+        master_archive.append(game_title_and_status)
+    return {"games": master_archive}
 

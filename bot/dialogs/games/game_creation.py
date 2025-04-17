@@ -82,7 +82,8 @@ async def get_age_requirements(**kwargs):
 
 # Create new game (ONSTART)
 async def create_new_game_if_needed(data: dict[str, Any], dialog_manager: DialogManager):
-    if dialog_manager.start_data.get("mode") != "register":
+    mode = dialog_manager.start_data.get("mode")
+    if mode != "register":
         old_game_id = dialog_manager.start_data.get("game_id")
         if old_game_id is None:
             logging.critical("no game id was provided")
@@ -90,6 +91,7 @@ async def create_new_game_if_needed(data: dict[str, Any], dialog_manager: Dialog
             return
 
         dialog_manager.dialog_data["game_id"] = old_game_id
+        dialog_manager.dialog_data["mode"] = mode
         return
 
     # TODO: this can cause some bugs
@@ -278,7 +280,13 @@ save_description = generate_save_message_from_user_no_formatting_game("descripti
 
 # Delete game if needed (ONCLICK)
 async def delete_current_game(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
-    game_id = dialog_manager.dialog_data.get("game_id")
+    game_id = await get_game_id_in_dialog_data(dialog_manager)
+
+    try:
+        user["master"]["games"].remove(game_id)
+    except ValueError:
+        logging.critical("missing game_id ({}) in user games".format(game_id))
+
     games.pop(game_id, None)
 
 
