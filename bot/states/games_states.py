@@ -3,8 +3,11 @@ from aiogram.fsm.state import State, StatesGroup
 
 class AllGames(StatesGroup):
     checking_games = State()
+    checking_archive = State()
     checking_master_games = State()
+    checking_master_archive = State()
     checking_player_games = State()
+    checking_player_archive = State()
 
 
 class GameInspection(StatesGroup):
@@ -12,7 +15,7 @@ class GameInspection(StatesGroup):
     checking_game = State()
     rating_game = State()
     delete_game_confirmation = State()
-    archive_game_confirmation = State()
+    change_game_folder_confirmation = State()
     # Master
     choosing_what_to_edit = State()
     set_status_public_confirmation = State()
