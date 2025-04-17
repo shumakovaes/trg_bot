@@ -19,8 +19,8 @@
 # in player/master there are only ids of games
 user = {
     "general": {"name": "", "age": "", "city": "", "time_zone": "", "role": "", "format": "", "about_info": ""},
-    "player": {"experience": "", "payment": "", "systems": [], "games": ["id_000000"], "archive": [], },
-    "master": {"is_filled": False, "experience": "", "cost": "", "place": "", "platform": "", "requirements": "", "games": ["id_000000"], "archive": []},
+    "player": {"experience": "", "payment": "", "systems": [], "games": set("id_000000"), "archive": set(), },
+    "master": {"is_filled": False, "experience": "", "cost": "", "place": "", "platform": "", "requirements": "", "games": set("id_000000"), "archive": set()},
 }
 
 users = {
@@ -31,7 +31,8 @@ users = {
 game = {
     "status": "Набор игроков закрыт",
     "master": "id_000000",
-    "players": ["id_000000"],
+    "players": set("id_000000"),
+    "requests": set(),
     "title": "Тестовая игра",
     "place": "Улица Пушкина, дом Колотушкина",
     "platform": "",

@@ -15,10 +15,20 @@ from bot.dialogs.general_tools import switch_state, need_to_display_current_valu
 from bot.states.games_states import GameCreation, GameInspection
 
 # WIDGETS
-# TODO: add filters
-def generate_games_list(elements: str):
+def generate_games_list_title_status(elements: str):
     games_list = List(
         Format("{pos}. {item[title]} - {item[status]}"),
+        items="games",
+        page_size=10,
+        id="scroll_games_{}".format(elements),
+    )
+
+    return games_list
+
+
+def generate_games_list_title(elements: str):
+    games_list = List(
+        Format("{pos}. {item[title]}"),
         items="games",
         page_size=10,
         id="scroll_games_{}".format(elements),

@@ -18,11 +18,12 @@ from bot.dialogs.registration.master_form import master_form_dialog
 from bot.dialogs.games.all_games import all_games_dialog
 from bot.dialogs.games.game_inspection import game_inspection_dialog
 from bot.dialogs.games.game_creation import game_creation_dialog
+from bot.dialogs.games.searching_game import searching_game_dialog
 
 
 def get_all_dialogs():
     all_dialogs = [registration_dialog, profile_dialog, player_form_dialog, master_form_dialog, all_games_dialog,
-                   game_inspection_dialog, game_creation_dialog]
+                   game_inspection_dialog, game_creation_dialog, searching_game_dialog]
     return all_dialogs
 
 

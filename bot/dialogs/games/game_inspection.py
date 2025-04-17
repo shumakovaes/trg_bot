@@ -55,7 +55,7 @@ async def delete_game_from_user(user_id: str, role: str, games_list: str, game_i
 
 async def add_game_to_user(user_id: str, role: str, games_list: str, game_id: str, dialog_manager: DialogManager):
     try:
-        users[user_id][role][games_list].append(game_id)
+        users[user_id][role][games_list].add(game_id)
     except KeyError:
         logging.critical("missing expected parameters in user by id: {}".format(user_id))
         await dialog_manager.done()
@@ -296,7 +296,7 @@ game_inspection_dialog = Dialog(
     ),
     Window(
         Jinja("Вы точно хотите удалить игру? <b>Это действие нельзя будет отменить.</b>"),
-        Jinja("Вы будете исключены из игроков, а заявка будет удалена.", when=is_user_player),
+        Jinja("Вы будете исключены из игроков (если вы в нём были), а заявка будет удалена.", when=is_user_player),
         Jinja("Все игроки будут исключены из группы, а игра удалена из вашего списка.", when=is_user_master),
         Jinja("Чтобы подтвердить это действие, отправьте ответным сообщение название игры: <b>{{title}}</b>"),
 

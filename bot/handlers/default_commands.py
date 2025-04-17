@@ -7,7 +7,7 @@ from aiogram_dialog import DialogManager, StartMode
 from bot.dialogs.general_tools import start_game_creation
 # from bot.keyboards.kb_start import make_new_form_keyboard
 from bot.states.registration_states import Registration, Profile, MasterForm, PlayerForm
-from bot.states.games_states import AllGames, GameCreation
+from bot.states.games_states import AllGames, GameCreation, SearchingGame
 
 router = Router()
 
@@ -26,6 +26,8 @@ async def set_main_menu(bot: Bot):
                    description="Просмотр статуса и создание игр"),
         BotCommand(command="/create",
                    description="Создать новую игру"),
+        BotCommand(command="/search",
+                   description="Поиск игр"),
     ]
 
     await bot.set_my_commands(main_menu_commands)
@@ -70,6 +72,11 @@ async def check_profile(message: Message, dialog_manager: DialogManager):
 @router.message(Command("create"))
 async def check_profile(message: Message, dialog_manager: DialogManager):
     await start_game_creation(dialog_manager)
+
+
+@router.message(Command("search"))
+async def check_profile(message: Message, dialog_manager: DialogManager):
+    await dialog_manager.start(SearchingGame.checking_open_games)
 
 
 @router.message(Command("cancel"))
