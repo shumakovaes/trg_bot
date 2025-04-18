@@ -244,7 +244,7 @@ async def get_master_by_game_id_in_dialog_data(dialog_manager: DialogManager, **
     except KeyError:
         logging.critical("cannot get master fields for user by id {}".format(master_id))
 
-    return {"master_form": master_form}
+    return master_form
 
 
 async def get_systems(dialog_manager: DialogManager, **kwargs):
@@ -335,7 +335,7 @@ async def send_request(callback: CallbackQuery, button: Button, dialog_manager: 
         return
 
     try:
-        games[game_id]["requests"].add(user_id)
+        games[game_id]["requests"].append(user_id)
     except KeyError:
         logging.critical("cannot get requests for game by id {}".format(game_id))
         await callback.answer("Что-то пошло не так, обратитесь в поддержку.")
@@ -343,7 +343,7 @@ async def send_request(callback: CallbackQuery, button: Button, dialog_manager: 
         return
 
     try:
-        user["player"]["games"].add(game_id)
+        user["player"]["games"].append(game_id)
     except KeyError:
         logging.critical("cannot get games for user by id {}".format(user_id))
         await callback.answer("Что-то пошло не так, обратитесь в поддержку.")

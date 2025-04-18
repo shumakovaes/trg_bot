@@ -10,7 +10,7 @@ from aiogram_dialog import DialogManager
 from aiogram_dialog.widgets.common import Whenable
 from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Cancel, Button
-from aiogram_dialog.widgets.text import Const, Jinja, Multi
+from aiogram_dialog.widgets.text import Const, Jinja, Multi, List
 from typing_extensions import Any
 
 from bot.db.current_requests import user
@@ -136,8 +136,28 @@ def generate_user_description():
 
 def generate_player_description():
     player_description = Multi(
-        generate_user_description(),
+    generate_user_description(),
 
+        Jinja(
+            "<b>Опыт</b>: {{experience}}",
+            when=F["experience_provided"],
+        ),
+        Jinja(
+            "<b>Оплата</b>: {{payment}}",
+            when = F["payment_provided"],
+        ),
+        Multi(
+            Jinja(
+            "<b>Системы</b>: "
+            ),
+            List(
+                Jinja("{{item}}"),
+                items="systems",
+                sep=", "
+            ),
+            sep="",
+            when=F["systems_provided"],
+        ),
         sep='\n'
     )
 

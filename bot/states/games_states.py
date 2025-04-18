@@ -20,8 +20,10 @@ class GameInspection(StatesGroup):
     choosing_what_to_edit = State()
     set_status_public_confirmation = State()
     set_status_done_confirmation = State()
-    checking_applications = State()
+    checking_all_requests = State()
+    checking_request = State()
     managing_group = State()
+    kick_confirmation = State()
 
 
 

@@ -13,6 +13,7 @@ from aiogram_dialog.widgets.kbd import Button, Row, Column, Start, Select, Cance
 from bot.db.current_requests import get_user_player, get_user_master, games, user, users, open_games
 from bot.dialogs.games.games_tools import generate_game_description, get_game_by_id_in_start_data, \
     get_game_by_id_in_dialog_data, get_game_by_id, is_game_offline, is_game_online, get_game_id_in_dialog_data
+from bot.dialogs.general_tools import generate_player_description
 from bot.states.games_states import AllGames, GameInspection, GameCreation
 
 
@@ -55,7 +56,7 @@ async def delete_game_from_user(user_id: str, role: str, games_list: str, game_i
 
 async def add_game_to_user(user_id: str, role: str, games_list: str, game_id: str, dialog_manager: DialogManager):
     try:
-        users[user_id][role][games_list].add(game_id)
+        users[user_id][role][games_list].append(game_id)
     except KeyError:
         logging.critical("missing expected parameters in user by id: {}".format(user_id))
         await dialog_manager.done()
@@ -76,6 +77,71 @@ async def copy_data_to_dialog_data(data: dict[str, Any], dialog_manager: DialogM
 
     current_game = await get_game_by_id(dialog_manager, game_id)
     dialog_manager.dialog_data["status"] = current_game["status"]
+
+
+# GETTERS
+async def get_players_by_game_id_in_dialog_data(dialog_manager: DialogManager, **kwargs):
+    current_game = await get_game_by_id_in_dialog_data(dialog_manager)
+
+    try:
+        players = current_game["players"]
+        players_list = [{"name": users[player]["general"]["name"], "id": player} for player in players]
+    except KeyError:
+        logging.critical("cannot access player list for or players name")
+        await dialog_manager.done()
+        return
+
+    return {"players": players_list}
+
+
+async def get_requests_by_game_id_in_dialog_data(dialog_manager: DialogManager, **kwargs):
+    current_game = await get_game_by_id_in_dialog_data(dialog_manager)
+
+    try:
+        requests = current_game["requests"]
+        requests_list = [{"name": users[request]["general"]["name"], "id": request} for request in requests]
+    except KeyError:
+        logging.critical("cannot access requests list or players name")
+        await dialog_manager.done()
+        return
+
+    return {"requests": requests_list}
+
+
+async def get_player_profile_by_id_in_dialog_data(dialog_manager: DialogManager, **kwargs):
+    player_id = dialog_manager.dialog_data.get("request_player")
+    if player_id is None:
+        logging.critical("missing request_player in dialog data")
+        await dialog_manager.done()
+        return
+
+    player = users.get(player_id)
+    if player is None:
+        logging.critical("cannot get user by id {}".format(player_id))
+        await dialog_manager.done()
+
+    player_form = {}
+    try:
+        master_form = {
+            "name": player["general"]["name"],
+            "age": player["general"]["age"],
+            "city": player["general"]["city"],
+            "time_zone": player["general"]["time_zone"],
+            "role": player["general"]["role"],
+            "format": player["general"]["format"],
+            "about_info": player["general"]["about_info"],
+            "experience": player["player"]["experience"],
+            "payment": player["player"]["payment"],
+            "systems": player["player"]["systems"],
+            "experience_provided": player["player"]["experience"] != "",
+            "payment_provided": player["player"]["payment"] != "",
+            "systems_provided": player["player"]["systems"] != [],
+        }
+    except KeyError:
+        logging.critical("cannot get player fields for user by id {}".format(player_id))
+
+    return player_form
+
 
 
 # SELECTORS
@@ -240,6 +306,101 @@ async def delete_game(message: Message, message_input: MessageInput, dialog_mana
     await message.answer("Для подтверждения действия ваше сообщение должно совпадать с названием игры.")
 
 
+async def kick_player(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
+    str_index = message.text.strip(" .;'\"")
+    if str_index is None or not str_index.isdigit():
+        await message.answer("Вам необходимо ввести число.")
+        return
+
+    index = int(str_index)
+    data = await get_players_by_game_id_in_dialog_data(dialog_manager)
+    players = data["players"]
+    players_number = len(players)
+    if index > players_number or index < 0:
+        await message.answer("Введите число, соответствующее индексу игры (от 1 до {}).".format(players_number))
+
+    dialog_manager.dialog_data["kicking_player"] = players[index - 1]["id"]
+    await dialog_manager.switch_to(GameInspection.kick_confirmation)
+
+
+async def kick_player_by_id_in_dialog_data(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
+    player_id = dialog_manager.dialog_data.get("kicking_player")
+    if player_id is None:
+        logging.critical("missing kicking_player in dialog data")
+        await dialog_manager.done()
+        return
+
+    game_id = await get_game_id_in_dialog_data(dialog_manager)
+    try:
+        games[game_id]["players"].remove(player_id)
+    except ValueError:
+        logging.critical("missing player by id {} in game by id {}".format(player_id, game_id))
+        await dialog_manager.done()
+        return
+    except KeyError:
+        logging.critical("cannot access players for game by id {}".format(game_id))
+        await dialog_manager.done()
+        return
+
+
+async def check_request(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
+    str_index = message.text.strip(" .;'\"")
+    if str_index is None or not str_index.isdigit():
+        await message.answer("Вам необходимо ввести число.")
+        return
+
+    index = int(str_index)
+    data = await get_requests_by_game_id_in_dialog_data(dialog_manager)
+    requests = data["requests"]
+    requests_number = len(requests)
+    if index > requests_number or index < 0:
+        await message.answer("Введите число, соответствующее индексу игры (от 1 до {}).".format(requests_number))
+
+    dialog_manager.dialog_data["request_player"] = requests[index - 1]["id"]
+    await dialog_manager.switch_to(GameInspection.checking_request)
+
+
+async def accept_request(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
+    player_id = dialog_manager.dialog_data.get("request_player")
+    if player_id is None:
+        logging.critical("missing request_player in dialog data")
+        await dialog_manager.done()
+        return
+
+    game_id = await get_game_id_in_dialog_data(dialog_manager)
+    try:
+        games[game_id]["requests"].remove(player_id)
+        games[game_id]["players"].append(player_id)
+    except ValueError:
+        logging.critical("missing requests by id {} in game by id {}".format(player_id, game_id))
+        await dialog_manager.done()
+        return
+    except KeyError:
+        logging.critical("cannot access requests for game by id {}".format(game_id))
+        await dialog_manager.done()
+        return
+
+
+async def decline_request(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
+    player_id = dialog_manager.dialog_data.get("request_player")
+    if player_id is None:
+        logging.critical("missing request_player in dialog data")
+        await dialog_manager.done()
+        return
+
+    game_id = await get_game_id_in_dialog_data(dialog_manager)
+    try:
+        games[game_id]["requests"].remove(player_id)
+    except ValueError:
+        logging.critical("missing requests by id {} in game by id {}".format(player_id, game_id))
+        await dialog_manager.done()
+        return
+    except KeyError:
+        logging.critical("cannot access requests for game by id {}".format(game_id))
+        await dialog_manager.done()
+        return
+
+
 # Game inspection dialog
 game_inspection_dialog = Dialog(
     Window(
@@ -250,6 +411,11 @@ game_inspection_dialog = Dialog(
             SwitchTo(text=Const("Удалить"), id="delete_game", state=GameInspection.delete_game_confirmation),
             SwitchTo(text=Const("Архивировать"), id="archive_game", state=GameInspection.change_game_folder_confirmation, when=is_folder_games),
             SwitchTo(text=Const("Разархивировать"), id="dearchive_game", state=GameInspection.change_game_folder_confirmation, when=is_folder_archive),
+        ),
+        Row(
+            SwitchTo(text=Const("Управлять группой"), id="managing_group", state=GameInspection.managing_group),
+            SwitchTo(text=Const("Заявки на игру"), id="checking_requests", state=GameInspection.checking_all_requests),
+            when=is_status_not_done,
         ),
         SwitchTo(text=Const("Открыть набор игроков"), id="set_status_to_public", state=GameInspection.set_status_public_confirmation, when=is_status_private),
         Button(text=Const("Завершить набор игроков"), id="set_status_to_private", on_click=generate_set_status("Набор игроков закрыт"), when=is_status_public),
@@ -315,6 +481,54 @@ game_inspection_dialog = Dialog(
         SwitchTo(Const("Назад"), id="back_to_checking_game_delete_canceled", state=GameInspection.checking_game),
         getter=get_game_by_id_in_dialog_data,
         state=GameInspection.delete_game_confirmation,
+    ),
+    Window(
+        Const("Это ваши игроки. Вы можете исключить кого-то их них из группы, введя его номер"),
+        List(
+            Format("{pos}. {item[name]}"),
+            items="players",
+            id="players_list",
+        ),
+
+        MessageInput(func=kick_player, content_types=[ContentType.TEXT]),
+
+        SwitchTo(Const("Назад"), id="back_to_checking_game_from_managing_group", state=GameInspection.checking_game),
+        getter=get_players_by_game_id_in_dialog_data,
+        state=GameInspection.managing_group,
+    ),
+    Window(
+        Const("Вы точно хотите исключить игрока?\nБудьте осторожны, <b>добавить его обратно получиться, только если он снова подаст заявку</b>."),
+
+        SwitchTo(Const("Подтвердить"), id="back_to_managing_group_kick_confirmed", state=GameInspection.managing_group, on_click=kick_player_by_id_in_dialog_data),
+
+        SwitchTo(Const("Отмена"), id="back_to_managing_group_kick_canceled", state=GameInspection.managing_group),
+        state=GameInspection.kick_confirmation,
+    ),
+    Window(
+        Const("Это все заявки, поданные на игру. Чтобы просмотреть профиль игрока и принять или отклонить заявку, введите его номер"),
+        List(
+            Format("{pos}. {item[name]}"),
+            items="requests",
+            id="requests_list",
+        ),
+
+        MessageInput(func=check_request, content_types=[ContentType.TEXT]),
+
+        SwitchTo(Const("Назад"), id="back_to_checking_game_from_checking_requests", state=GameInspection.checking_game),
+        getter=get_requests_by_game_id_in_dialog_data,
+        state=GameInspection.checking_all_requests,
+    ),
+    Window(
+        Const("Профиль игрока:\n"),
+        generate_player_description(),
+
+        Row(
+            SwitchTo(Const("Принять заявку"), id="back_to_checking_all_requests_request_accepted", state=GameInspection.checking_all_requests, on_click=accept_request),
+            SwitchTo(Const("Отклонить заявку"), id="back_to_checking_all_requests_request_accepted", state=GameInspection.checking_all_requests, on_click=decline_request),
+        ),
+
+        getter=get_player_profile_by_id_in_dialog_data,
+        state=GameInspection.checking_request,
     ),
     on_start=copy_data_to_dialog_data,
 )

@@ -122,7 +122,7 @@ async def create_new_game_if_needed(data: dict[str, Any], dialog_manager: Dialog
 
     dialog_manager.dialog_data["game_id"] = new_game_id
     games[new_game_id] = default_game
-    user["master"]["games"].add(new_game_id)
+    user["master"]["games"].append(new_game_id)
 
     dialog_manager.dialog_data["default_data"] = {}
     dialog_manager.dialog_data["default_settings"] = "no"

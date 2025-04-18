@@ -19,8 +19,8 @@
 # in player/master there are only ids of games
 user = {
     "general": {"name": "", "age": 18, "city": "", "time_zone": "", "role": "", "format": "", "about_info": ""},
-    "player": {"experience": "", "payment": "", "systems": [], "games": set("id_000000"), "archive": set(), "rating": 0, "reviews": []},
-    "master": {"is_filled": False, "experience": "", "cost": "", "place": "", "platform": "", "requirements": "", "games": set("id_000000"), "archive": set(), "rating": 0, "reviews": []},
+    "player": {"experience": "", "payment": "", "systems": [], "games": ["id_000000"], "archive": [], "rating": 0, "reviews": []},
+    "master": {"is_filled": False, "experience": "", "cost": "", "place": "", "platform": "", "requirements": "", "games": ["id_000000"], "archive": [], "rating": 0, "reviews": []},
 }
 
 users = {
@@ -31,8 +31,8 @@ users = {
 game = {
     "status": "Набор игроков открыт",
     "master": "id_000000",
-    "players": set("id_000000"),
-    "requests": set(),
+    "players": ["id_000000"],
+    "requests": ["id_000000"],
     "title": "Тестовая игра",
     "place": "Улица Пушкина, дом Колотушкина",
     "platform": "",
@@ -53,8 +53,8 @@ game = {
 default_game = {
     "status": "Набор игроков закрыт",
     "master": "id_000000",
-    "players": set(),
-    "requests": set(),
+    "players": [],
+    "requests": [],
     "title": "",
     "place": "",
     "platform": "",
