@@ -314,7 +314,7 @@ async def save_type(callback: CallbackQuery, button: Button, dialog_manager: Dia
 
     type_by_id = {
         "type_oneshot_game": "Ваншот",
-        "type_company_game": "Компания",
+        "type_campaign_game": "Кампания",
     }
     session_type = type_by_id.get(button.widget_id)
 
@@ -529,11 +529,11 @@ game_creation_dialog = Dialog(
         state=GameCreation.typing_time,
     ),
     Window(
-        Const("Сколько сессий вы планируете провести? Будет ли это ваншот или полноценная компания?"),
+        Const("Сколько сессий вы планируете провести? Будет ли это ваншот или полноценная кампания?"),
         Jinja("\n<b>Текущее значение</b>: {{type}}", when=need_to_display_current_value),
 
         Button(Const("Ваншот"), id="type_oneshot_game", on_click=save_type),
-        Button(Const("Компания"), id="type_company_game", on_click=save_type),
+        Button(Const("Кампания"), id="type_campaign_game", on_click=save_type),
 
         go_back_when_edit_mode,
         state=GameCreation.choosing_type,

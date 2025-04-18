@@ -19,8 +19,10 @@ from bot.states.games_states import GameCreation
 
 # RAISING ERRORS
 # Raise error, when unexpected or duplicated id detected
-async def raise_keyboard_error(event: CallbackQuery | Message, item_type: str):
+async def raise_keyboard_error(event: Optional[CallbackQuery | Message], item_type: str):
     logging.critical("unexpected or duplicated id {}".format(item_type))
+    if event is None:
+        return
 
     if type(event) == Message:
         await event.answer(
@@ -84,7 +86,7 @@ async def start_game_creation(dialog_manager: DialogManager):
 
 
 # Finds item with given value in data from getter
-async def get_item_by_key(data: dict[str, Any], items_key: str, key: str, value: str, event: CallbackQuery | Message,
+async def get_item_by_key(data: dict[str, Any], items_key: str, key: str, value: str, event: Optional[CallbackQuery | Message],
                           error_message: str, allowed_zero_items: bool = False, find_lower: bool = False):
     items = data[items_key]
     if find_lower:
