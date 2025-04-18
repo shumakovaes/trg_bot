@@ -48,8 +48,3 @@ class SearchingGame(StatesGroup):
     checking_specific_game = State()
     checking_master_form = State()
     checking_filters = State()
-    format_filter = State()
-    cost_filter = State()
-    type_filter = State()
-    system_filter = State()
-    age_filter = State()

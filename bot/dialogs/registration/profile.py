@@ -4,6 +4,7 @@ from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.text import Const, Format, Jinja
 from aiogram_dialog.widgets.kbd import Button, Row, Column, Back, SwitchTo, Select, Group, Cancel, Start
 
+from bot.dialogs.general_tools import generate_user_description
 from bot.states.registration_states import Registration, Profile, PlayerForm, MasterForm
 
 from bot.db.current_requests import user, get_user_general
@@ -13,15 +14,9 @@ profile_dialog = Dialog(
     # Checking profile
     Window(
         Jinja(
-            "Это ваш профиль, в нём указана основная информация о вас. \nЕё увидят игроки, если вы опубликуете игру, и мастера, если вы откликнитесь на существующую заявку.  \n\n" +
-            "<b>Имя</b>: {{name}}\n" +
-            "<b>Возраст</b>: {{age}}\n" +
-            "<b>Город</b>: {{city}}\n" +
-            "<b>Часовой пояс</b>: {{time_zone}}\n" +
-            "<b>Роль</b>: {{role}}\n" +
-            "<b>Формат игры</b>: {{format}}\n" +
-            "<b>О себе</b>: {{about_info}}\n",
+            "Это ваш профиль, в нём указана основная информация о вас. \nЕё увидят игроки, если вы опубликуете игру, и мастера, если вы откликнитесь на существующую заявку.  \n"
         ),
+        generate_user_description(),
 
         SwitchTo(Const("Редактировать анкету"), state=Profile.choosing_what_to_edit, id="edit_form",
                  show_mode=ShowMode.SEND),

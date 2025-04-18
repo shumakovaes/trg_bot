@@ -10,7 +10,7 @@ from aiogram_dialog.widgets.text import Const, Format, Jinja, List, Multi
 from aiogram_dialog.widgets.kbd import Button, Row, Column, Start, Select, Cancel, SwitchTo, Group, PrevPage, \
     CurrentPage, NextPage
 
-from bot.db.current_requests import get_user_player, get_user_master, games, user, users
+from bot.db.current_requests import get_user_player, get_user_master, games, user, users, open_games
 from bot.dialogs.games.games_tools import generate_game_description, get_game_by_id_in_start_data, \
     get_game_by_id_in_dialog_data, get_game_by_id, is_game_offline, is_game_online, get_game_id_in_dialog_data
 from bot.states.games_states import AllGames, GameInspection, GameCreation
@@ -126,7 +126,17 @@ def generate_set_status(new_status: str):
             await dialog_manager.done()
             return
 
-        await callback.answer(text="Статус успешно изменён!", show_alert=True)
+        if new_status == "Набор игроков открыт":
+            open_games.add(game_id)
+        if new_status == "Набор игроков закрыт":
+            try:
+                open_games.remove(game_id)
+            except ValueError:
+                logging.critical("game by {} is missing in open games".format(game_id))
+                await dialog_manager.done()
+                return
+
+        await callback.answer(text="Статус успешно изменён!")
 
     return set_status
 
@@ -181,9 +191,9 @@ async def change_game_folder(callback: CallbackQuery, button: Button, dialog_man
     await add_game_to_user(user_id, rights, new_folder, game_id, dialog_manager)
 
     if new_folder == "archive":
-        await callback.answer("Игра перемещена в архив.", show_alert=True)
+        await callback.answer("Игра перемещена в архив.")
     if new_folder == "games":
-        await callback.answer("Игра перемещена из архива.", show_alert=True)
+        await callback.answer("Игра перемещена из архива.")
 
 
 async def delete_game(message: Message, message_input: MessageInput, dialog_manager: DialogManager):

@@ -2,13 +2,15 @@ import logging
 import random
 from typing import Optional
 
+from magic_filter import F
+
 from aiogram.fsm.state import State
 from aiogram.types import CallbackQuery, Message
 from aiogram_dialog import DialogManager
 from aiogram_dialog.widgets.common import Whenable
 from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.kbd import Cancel, Button
-from aiogram_dialog.widgets.text import Const
+from aiogram_dialog.widgets.text import Const, Jinja, Multi
 from typing_extensions import Any
 
 from bot.db.current_requests import user
@@ -114,6 +116,43 @@ def is_register_mode(data: dict, widget: Whenable, dialog_manager: DialogManager
 
 # WIDGETS
 go_back_when_edit_mode = Cancel(Const("Назад"), when=is_edit_mode)
+
+def generate_user_description():
+    user_description = Jinja(
+        "<b>Имя</b>: {{name}}\n" +
+        "<b>Возраст</b>: {{age}}\n" +
+        "<b>Город</b>: {{city}}\n" +
+        "<b>Часовой пояс</b>: {{time_zone}}\n" +
+        "<b>Роль</b>: {{role}}\n" +
+        "<b>Формат игры</b>: {{format}}\n" +
+        "<b>Формат игры</b>: {{format}}\n" +
+        "<b>О себе</b>: {{about_info}}\n"
+    )
+
+    return user_description
+
+
+def generate_player_description():
+    player_description = Multi(
+        generate_user_description(),
+
+        sep='\n'
+    )
+
+    return player_description
+
+
+def generate_master_description():
+    master_description = Multi(
+        generate_user_description(),
+        Jinja(
+            "<b>Опыт ведения игр</b>: {{experience}}\n",
+            when=F["experience_provided"],
+        ),
+        sep='\n',
+    )
+
+    return master_description
 
 
 # ONCLICK GENERATORS

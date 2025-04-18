@@ -18,9 +18,9 @@
 
 # in player/master there are only ids of games
 user = {
-    "general": {"name": "", "age": "", "city": "", "time_zone": "", "role": "", "format": "", "about_info": ""},
-    "player": {"experience": "", "payment": "", "systems": [], "games": set("id_000000"), "archive": set(), },
-    "master": {"is_filled": False, "experience": "", "cost": "", "place": "", "platform": "", "requirements": "", "games": set("id_000000"), "archive": set()},
+    "general": {"name": "", "age": 18, "city": "", "time_zone": "", "role": "", "format": "", "about_info": ""},
+    "player": {"experience": "", "payment": "", "systems": [], "games": set("id_000000"), "archive": set(), "rating": 0, "reviews": []},
+    "master": {"is_filled": False, "experience": "", "cost": "", "place": "", "platform": "", "requirements": "", "games": set("id_000000"), "archive": set(), "rating": 0, "reviews": []},
 }
 
 users = {
@@ -29,7 +29,7 @@ users = {
 
 # in player/master there are only ids of users
 game = {
-    "status": "Набор игроков закрыт",
+    "status": "Набор игроков открыт",
     "master": "id_000000",
     "players": set("id_000000"),
     "requests": set(),
@@ -51,9 +51,10 @@ game = {
 }
 
 default_game = {
-    "status": "Набор игроков открыт",
+    "status": "Набор игроков закрыт",
     "master": "id_000000",
-    "players": [""],
+    "players": set(),
+    "requests": set(),
     "title": "",
     "place": "",
     "platform": "",
@@ -73,6 +74,12 @@ default_game = {
 
 games = {
     "id_000000": game
+}
+
+
+open_games = {
+    "id_000000",
+    "id_000000"
 }
 
 

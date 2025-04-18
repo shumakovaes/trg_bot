@@ -87,6 +87,7 @@ async def save_systems_and_exit(callback: CallbackQuery, button: Button, dialog_
     await dialog_manager.done()
 
 
+# TODO: add type (oneshot/company) choosing
 # Player form
 player_form_dialog = Dialog(
     # Checking profile
