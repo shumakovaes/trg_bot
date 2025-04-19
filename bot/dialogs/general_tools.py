@@ -127,7 +127,6 @@ def generate_user_description():
         "<b>Часовой пояс</b>: {{time_zone}}\n" +
         "<b>Роль</b>: {{role}}\n" +
         "<b>Формат игры</b>: {{format}}\n" +
-        "<b>Формат игры</b>: {{format}}\n" +
         "<b>О себе</b>: {{about_info}}\n"
     )
 
@@ -158,6 +157,10 @@ def generate_player_description():
             sep="",
             when=F["systems_provided"],
         ),
+        Jinja(
+            "<b>Рейтинг</b>: {{rating}}",
+            when=F["has_rating"],
+        ),
         sep='\n'
     )
 
@@ -170,6 +173,10 @@ def generate_master_description():
         Jinja(
             "<b>Опыт ведения игр</b>: {{experience}}\n",
             when=F["experience_provided"],
+        ),
+        Jinja(
+            "<b>Рейтинг</b>: {{rating}}",
+            when=F["has_rating"],
         ),
         sep='\n',
     )

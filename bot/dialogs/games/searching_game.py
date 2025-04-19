@@ -239,7 +239,9 @@ async def get_master_by_game_id_in_dialog_data(dialog_manager: DialogManager, **
             "format": master["general"]["format"],
             "about_info": master["general"]["about_info"],
             "experience": master["master"]["experience"],
+            "rating": master["master"]["rating"],
             "experience_provided": master["master"]["experience"] != "",
+            "has_rating": master["master"]["rating"] != 0,
         }
     except KeyError:
         logging.critical("cannot get master fields for user by id {}".format(master_id))

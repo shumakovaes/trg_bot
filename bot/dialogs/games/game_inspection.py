@@ -8,11 +8,12 @@ from aiogram_dialog.widgets.common import Whenable
 from aiogram_dialog.widgets.input import MessageInput
 from aiogram_dialog.widgets.text import Const, Format, Jinja, List, Multi
 from aiogram_dialog.widgets.kbd import Button, Row, Column, Start, Select, Cancel, SwitchTo, Group, PrevPage, \
-    CurrentPage, NextPage
+    CurrentPage, NextPage, ListGroup
 
 from bot.db.current_requests import get_user_player, get_user_master, games, user, users, open_games
 from bot.dialogs.games.games_tools import generate_game_description, get_game_by_id_in_start_data, \
-    get_game_by_id_in_dialog_data, get_game_by_id, is_game_offline, is_game_online, get_game_id_in_dialog_data
+    get_game_by_id_in_dialog_data, get_game_by_id, is_game_offline, is_game_online, get_game_id_in_dialog_data, \
+    get_game_by_id_in_dialog_data_for_displaying, get_game_by_id_in_dialog_data_not_async
 from bot.dialogs.general_tools import generate_player_description
 from bot.states.games_states import AllGames, GameInspection, GameCreation
 
@@ -133,15 +134,58 @@ async def get_player_profile_by_id_in_dialog_data(dialog_manager: DialogManager,
             "experience": player["player"]["experience"],
             "payment": player["player"]["payment"],
             "systems": player["player"]["systems"],
+            "rating": player["player"]["rating"],
             "experience_provided": player["player"]["experience"] != "",
             "payment_provided": player["player"]["payment"] != "",
             "systems_provided": player["player"]["systems"] != [],
+            "has_rating": player["player"]["rating"] != 0,
         }
     except KeyError:
         logging.critical("cannot get player fields for user by id {}".format(player_id))
 
     return player_form
 
+
+async def get_players_and_masters_with_roles(dialog_manager: DialogManager, **kwargs):
+    current_game = await get_game_by_id_in_dialog_data(dialog_manager)
+    user_id = "id_000000"
+
+    master_and_players = []
+    try:
+        players = current_game["players"]
+        master_and_players = [{"name": users[player]["general"]["name"], "id": player, "system_role": "player", "role": "игрок"} for player in players if player != user_id]
+
+        master = current_game["master"]
+        if master != user_id:
+            master_and_players.append({"name": users[master]["general"]["name"], "id": master, "system_role": "master", "role": "мастер"})
+    except KeyError:
+        logging.critical("cannot access players list or master")
+        await dialog_manager.done()
+        return
+
+    return {"master_and_players": master_and_players}
+
+
+async def get_rating_user_and_rates(dialog_manager: DialogManager, **kwargs):
+    rating_user = dialog_manager.dialog_data.get("rating_user")
+    if rating_user is None:
+        logging.critical("missing rating_user in dialog data")
+        await dialog_manager.done()
+        return
+
+    rating_user_and_rates = {
+        "rates": [
+            {"rate": "★", "id": "rate_1"},
+            {"rate": "★★", "id": "rate_2"},
+            {"rate": "★★★", "id": "rate_3"},
+            {"rate": "★★★★", "id": "rate_4"},
+            {"rate": "★★★★★", "id": "rate_5"},
+        ],
+        "name": rating_user["name"],
+        "role": rating_user["role"],
+    }
+
+    return rating_user_and_rates
 
 
 # SELECTORS
@@ -150,19 +194,19 @@ def is_user_master(data: dict, widget: Whenable, dialog_manager: DialogManager):
     return dialog_manager.dialog_data.get("rights") == "master"
 
 
-def is_status_public(data: dict, widget: Whenable, dialog_manager: DialogManager):
+def is_status_public_and_rights_master(data: dict, widget: Whenable, dialog_manager: DialogManager):
     return dialog_manager.dialog_data.get("rights") == "master" and dialog_manager.dialog_data.get("status") == "Набор игроков открыт"
 
 
-def is_status_private(data: dict, widget: Whenable, dialog_manager: DialogManager):
+def is_status_private_and_rights_master(data: dict, widget: Whenable, dialog_manager: DialogManager):
     return dialog_manager.dialog_data.get("rights") == "master" and dialog_manager.dialog_data.get("status") == "Набор игроков закрыт"
 
 
-def is_status_not_done(data: dict, widget: Whenable, dialog_manager: DialogManager):
+def is_status_not_done_and_rights_master(data: dict, widget: Whenable, dialog_manager: DialogManager):
     return dialog_manager.dialog_data.get("rights") == "master" and not dialog_manager.dialog_data.get("status") == "Игра проведена"
 
 
-def is_status_done(data: dict, widget: Whenable, dialog_manager: DialogManager):
+def is_status_done_and_rights_master(data: dict, widget: Whenable, dialog_manager: DialogManager):
     return dialog_manager.dialog_data.get("rights") == "master" and dialog_manager.dialog_data.get("status") == "Игра проведена"
 
 
@@ -172,6 +216,23 @@ def is_folder_games(data: dict, widget: Whenable, dialog_manager: DialogManager)
 
 def is_folder_archive(data: dict, widget: Whenable, dialog_manager: DialogManager):
     return dialog_manager.dialog_data.get("folder") == "archive"
+
+
+def is_status_done_and_user_is_participate(data: dict, widget: Whenable, dialog_manager: DialogManager):
+    if not dialog_manager.dialog_data.get("status") == "Игра проведена":
+        return False
+
+    user_id = "id_000000"
+    current_game = get_game_by_id_in_dialog_data_not_async(dialog_manager)
+
+    try:
+        if user_id == current_game["master"] or user_id in current_game["players"]:
+            return True
+    except KeyError:
+        logging.critical("cannot access game fields")
+
+    return False
+
 
 
 # Player statuses
@@ -239,6 +300,7 @@ async def set_status_done(message: Message, message_input: MessageInput, dialog_
 
         await message.answer("Статус успешно изменён!")
         await dialog_manager.switch_to(GameInspection.checking_game)
+        return
 
     await message.answer("Для подтверждения действия ваше сообщение должно совпадать с названием игры.")
 
@@ -401,6 +463,50 @@ async def decline_request(callback: CallbackQuery, button: Button, dialog_manage
         return
 
 
+async def rate_user(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
+    str_index = message.text.strip(" .;'\"")
+    if str_index is None or not str_index.isdigit():
+        await message.answer("Вам необходимо ввести число.")
+        return
+
+    index = int(str_index)
+    data = await get_players_and_masters_with_roles(dialog_manager)
+    master_and_players = data["master_and_players"]
+    master_and_players_number = len(master_and_players)
+    if index > master_and_players_number or index < 0:
+        await message.answer("Введите число, соответствующее индексу игры (от 1 до {}).".format(master_and_players_number))
+
+    dialog_manager.dialog_data["rating_user"] = master_and_players[index - 1]
+    await dialog_manager.switch_to(GameInspection.rating_user)
+
+
+async def save_rating(callback: CallbackQuery, button: Button, dialog_manager: DialogManager, item_id: str):
+    _, rate = item_id.split("_")
+    rate = int(rate)
+
+    user_id = "id_000000"
+
+    rated_user = dialog_manager.dialog_data.get("rating_user")
+    if rated_user is None:
+        logging.critical("missing rating_user in dialog data")
+        await dialog_manager.done()
+        return
+
+
+    try:
+        users[rated_user["id"]][rated_user["system_role"]]["reviews"][user_id] = rate
+        rates = users[rated_user["id"]][rated_user["system_role"]]["reviews"].values()
+        sum_rating = sum(rates)
+        rate_number = len(rates)
+        users[rated_user["id"]][rated_user["system_role"]]["rating"] = sum_rating / rate_number
+    except KeyError:
+        logging.critical("cannot access ratings for user with id {}".format(rated_user["id"]))
+        await dialog_manager.done()
+        return
+
+    await dialog_manager.switch_to(GameInspection.choosing_who_to_rate)
+
+
 # Game inspection dialog
 game_inspection_dialog = Dialog(
     Window(
@@ -415,14 +521,15 @@ game_inspection_dialog = Dialog(
         Row(
             SwitchTo(text=Const("Управлять группой"), id="managing_group", state=GameInspection.managing_group),
             SwitchTo(text=Const("Заявки на игру"), id="checking_requests", state=GameInspection.checking_all_requests),
-            when=is_status_not_done,
+            when=is_status_not_done_and_rights_master,
         ),
-        SwitchTo(text=Const("Открыть набор игроков"), id="set_status_to_public", state=GameInspection.set_status_public_confirmation, when=is_status_private),
-        Button(text=Const("Завершить набор игроков"), id="set_status_to_private", on_click=generate_set_status("Набор игроков закрыт"), when=is_status_public),
-        SwitchTo(text=Const("Отметить игру проведённой"), id="set_status_to_done", state=GameInspection.set_status_done_confirmation, when=is_status_not_done),
+        SwitchTo(text=Const("Открыть набор игроков"), id="set_status_to_public", state=GameInspection.set_status_public_confirmation, when=is_status_private_and_rights_master),
+        Button(text=Const("Завершить набор игроков"), id="set_status_to_private", on_click=generate_set_status("Набор игроков закрыт"), when=is_status_public_and_rights_master),
+        SwitchTo(text=Const("Отметить игру проведённой"), id="set_status_to_done", state=GameInspection.set_status_done_confirmation, when=is_status_not_done_and_rights_master),
+        SwitchTo(Const("Оставить отзыв"), id="choosing_who_to_rate", state=GameInspection.choosing_who_to_rate, when=is_status_done_and_user_is_participate),
 
         Cancel(Const("Назад")),
-        getter=get_game_by_id_in_dialog_data,
+        getter=get_game_by_id_in_dialog_data_for_displaying,
         state=GameInspection.checking_game,
     ),
     Window(
@@ -529,6 +636,38 @@ game_inspection_dialog = Dialog(
 
         getter=get_player_profile_by_id_in_dialog_data,
         state=GameInspection.checking_request,
+    ),
+    Window(
+        Const("Выберите, кого вы хотите оценить. Для этого введите номер пользователя."),
+        List(
+            Format("{pos}. {item[name]} - {item[role]}"),
+            items="master_and_players",
+            id="master_and_players_list",
+        ),
+
+        MessageInput(func=rate_user, content_types=[ContentType.TEXT]),
+
+        SwitchTo(Const("Назад"), id="back_to_checking_game_from_choosing_who_to_rate", state=GameInspection.checking_game),
+        getter=get_players_and_masters_with_roles,
+        state=GameInspection.choosing_who_to_rate,
+    ),
+    Window(
+        Const("Оцените, на сколько приятным было взаимодействие с этим пользователем."),
+        Format("{name} - {role}"),
+
+        Column(
+            Select(
+                Format("{item[rate]}"),
+                id="select_rate",
+                item_id_getter=lambda item: item["id"],
+                items="rates",
+                on_click=save_rating
+            )
+        ),
+
+        SwitchTo(Const("Назад"), id="back_to_choosing_who_to_rate_from_rating_user", state=GameInspection.choosing_who_to_rate),
+        getter=get_rating_user_and_rates,
+        state=GameInspection.rating_user,
     ),
     on_start=copy_data_to_dialog_data,
 )

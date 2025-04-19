@@ -13,7 +13,8 @@ class AllGames(StatesGroup):
 class GameInspection(StatesGroup):
     # General
     checking_game = State()
-    rating_game = State()
+    choosing_who_to_rate = State()
+    rating_user = State()
     delete_game_confirmation = State()
     change_game_folder_confirmation = State()
     # Master

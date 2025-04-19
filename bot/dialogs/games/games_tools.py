@@ -209,6 +209,28 @@ async def get_game_by_id_in_dialog_data(dialog_manager: DialogManager, **kwargs)
     return current_game
 
 
+async def get_game_by_id_in_dialog_data_for_displaying(dialog_manager: DialogManager, **kwargs):
+    current_game = await get_game_by_id_in_dialog_data(dialog_manager)
+
+    rights = dialog_manager.dialog_data.get("rights")
+    if rights is None:
+        logging.critical("rights was not provided")
+        await dialog_manager.done()
+        return
+
+    if rights == "player":
+        user_id = "id_000000"
+
+        if user_id in current_game["players"]:
+            current_game["status"] = "Заявка принята"
+        elif user_id in current_game["requests"]:
+            current_game["status"] = "Заявка находится на рассмотрении"
+        else:
+            current_game["status"] = "Заявка отклонена"
+
+    return current_game
+
+
 # ONCLICK GENERATORS
 def generate_check_game(rights: str, folder: str):
     async def check_game(message: Message, message_input: MessageInput, dialog_manager: DialogManager):
