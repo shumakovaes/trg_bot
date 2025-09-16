@@ -11,6 +11,11 @@ all_experience_levels = ['Опыт1', 'Опыт2', 'Опыт3']
 
 
 def concat(options: list):
+    if not options:
+        return ""
+    for o in options:
+        if o is None:
+            raise TypeError("None is not allowed in options")
     option = options[0]
     for o in options[1:]:
         option += f', {o}'
@@ -28,7 +33,7 @@ def get_role(user: User):
 def get_game_format(user: User):
     formats = []
     for i in range(len(all_formats)):
-        if user.role & 2 ** i:
+        if user.game_format & 2 ** i:
             formats.append(all_formats[i])
     return concat(formats)
 

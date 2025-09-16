@@ -2,8 +2,7 @@ from sqlalchemy import (
     Column, Integer, BigInteger, String, Text, DateTime,
     ForeignKey, Boolean, Table
 )
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.sql import func
 
 Base = declarative_base()
@@ -34,7 +33,7 @@ class User(Base):
 
     player_profile = relationship("Player", back_populates="user", cascade="all, delete-orphan", uselist=False)
     master_profile = relationship("Master", back_populates="user", cascade="all, delete-orphan", uselist=False)
-    sessions = relationship("Session", back_populates="creator")
+    sessions = relationship("Session", back_populates="creator", cascade="all, delete")
 
 
 class Player(Base):
@@ -70,9 +69,10 @@ class Session(Base):
     format = Column(Integer, nullable=False)
     status = Column(Boolean, default=True)
     max_players = Column(Integer)
-    looking_for = Column(Boolean)
-
-    creator_id = Column(Integer, ForeignKey("users.id"))
+    looking_for = Column(Integer)
+    creator_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    master_id = Column(Integer, ForeignKey("masters.id"), nullable=True)
 
     creator = relationship("User", back_populates="sessions")
+    master = relationship("Master", back_populates="sessions")
     players = relationship("Player", secondary=session_players, back_populates="sessions")
