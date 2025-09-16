@@ -1,81 +1,223 @@
-import logging
+# bot/dialogs/games/all_games.py
+from __future__ import annotations
 
-from aiogram.fsm.state import State
-from aiogram.types import CallbackQuery, ContentType, Message
-from aiogram_dialog import Dialog, Window, DialogManager
-from aiogram_dialog.widgets.common import Whenable
-from aiogram_dialog.widgets.input import MessageInput
-from aiogram_dialog.widgets.text import Const, Format, Jinja, List
-from aiogram_dialog.widgets.kbd import Button, Row, Column, Start, Select, Cancel, SwitchTo, Group, PrevPage, \
-    CurrentPage, NextPage
+from typing import Any, Dict, List, Optional, Tuple
 
-from bot.db.current_requests import get_user_player, get_user_master, get_player_games, get_master_games, \
-    get_player_archive, get_master_archive, user
-from bot.dialogs.games.games_tools import generate_games_list_title_status, generate_games_navigation, generate_check_game
-from bot.dialogs.general_tools import start_game_creation
-from bot.states.games_states import AllGames, GameInspection, GameCreation
+from aiogram.types import CallbackQuery
+from aiogram_dialog import Dialog, DialogManager, Window
+from aiogram_dialog.widgets.kbd import (
+    Button,
+    Cancel,
+    Row,
+    SwitchTo,
+    Select,
+    Back,
+)
+from aiogram_dialog.widgets.text import Const, Jinja, Format, Multi
 
+from bot.states.games_states import AllGames  # must define: checking_games, listing_player_games, listing_master_games, viewing_game
 
-# ONCLICK
-async def create_new_game(callback: CallbackQuery, button: Button, dialog_manager: DialogManager):
-    await start_game_creation(dialog_manager)
+# ---- optional imports from current_requests; tolerate absence ----
+_get_user_player = None
+_get_user_master = None
+_get_player_games = None
+_get_master_games = None
 
-
-def generate_folder_inspection(rights: str, folder: str, getter, state: State, back_state: State, can_create_new_games: bool) -> Window:
-    if not can_create_new_games:
-        folder_inspection = Window(
-            Const("Чтобы посмотреть про игру подробнее, введите текстом её номер."),
-            generate_games_list_title_status(f"{rights}_{folder}"),
-
-            MessageInput(func=generate_check_game(rights, folder), content_types=[ContentType.TEXT]),
-
-            generate_games_navigation(f"{rights}_{folder}"),
-            SwitchTo(text=Const("Назад"), state=back_state, id=f"back_to_checking_games_from_{rights}_{folder}"),
-            getter=getter,
-            state=state,
-        )
-    else:
-        folder_inspection = Window(
-            Const("Чтобы посмотреть про игру подробнее, введите текстом её номер."),
-            generate_games_list_title_status(f"{rights}_{folder}"),
-
-            MessageInput(func=generate_check_game(rights, folder), content_types=[ContentType.TEXT]),
-            Button(text=Const("Создать новую игру"), id="create_game_from_all_games", on_click=create_new_game),
-
-            generate_games_navigation(f"{rights}_{folder}"),
-            SwitchTo(text=Const("Назад"), state=back_state, id=f"back_to_checking_games_from_{rights}_{folder}"),
-            getter=getter,
-            state=state,
-        )
+try:
+    from bot.db.current_requests import get_user_player as _gup  # type: ignore
+    _get_user_player = _gup
+except Exception:
+    pass
+try:
+    from bot.db.current_requests import get_user_master as _gum  # type: ignore
+    _get_user_master = _gum
+except Exception:
+    pass
+try:
+    from bot.db.current_requests import get_player_games as _gpg  # type: ignore
+    _get_player_games = _gpg
+except Exception:
+    pass
+try:
+    from bot.db.current_requests import get_master_games as _gmg  # type: ignore
+    _get_master_games = _gmg
+except Exception:
+    pass
 
 
-    return folder_inspection
+# ---------------- helpers ----------------
+
+async def _maybe_await(x):
+    return await x if hasattr(x, "__await__") else x
 
 
-# Choosing game dialog
+async def _load_player_games(dm: DialogManager) -> List[Dict[str, Any]]:
+    if _get_player_games is None:
+        return []
+    try:
+        games = await _maybe_await(_get_player_games(dm))
+        return list(games or [])
+    except Exception:
+        return []
+
+
+async def _load_master_games(dm: DialogManager) -> List[Dict[str, Any]]:
+    if _get_master_games is None:
+        return []
+    try:
+        games = await _maybe_await(_get_master_games(dm))
+        return list(games or [])
+    except Exception:
+        return []
+
+
+def _game_title(g: Dict[str, Any]) -> str:
+    name = g.get("name") or g.get("title") or "Без названия"
+    sys = g.get("system") or g.get("game_system") or ""
+    city = g.get("city") or ""
+    bits = [name]
+    if sys:
+        bits.append(f"({sys})")
+    if city:
+        bits.append(f"— {city}")
+    return " ".join(bits)
+
+
+def _game_details(g: Dict[str, Any]) -> str:
+    parts: List[str] = []
+    parts.append(f"<b>Название:</b> {g.get('name') or g.get('title') or '—'}")
+    parts.append(f"<b>Система:</b> {g.get('system') or g.get('game_system') or '—'}")
+    parts.append(f"<b>Город / формат:</b> {g.get('city') or '—'} / {g.get('format') or g.get('game_format') or '—'}")
+    parts.append(f"<b>Уровень:</b> {g.get('level') or '—'}")
+    parts.append(f"<b>Описание:</b> {g.get('description') or g.get('about') or '—'}")
+    return "\n".join(parts)
+
+
+# ---------------- getters (IMPORTANT: accept dialog_manager kwarg) ----------------
+
+async def getter_menu(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
+    """
+    Initial menu getter. Preload lists so buttons can show counts.
+    """
+    dd = dialog_manager.dialog_data
+    player_games = await _load_player_games(dialog_manager)
+    master_games = await _load_master_games(dialog_manager)
+    dd["player_games"] = player_games
+    dd["master_games"] = master_games
+    return {
+        "player_count": len(player_games),
+        "master_count": len(master_games),
+    }
+
+
+async def getter_player_list(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
+    dd = dialog_manager.dialog_data
+    games = dd.get("player_games")
+    if games is None:
+        games = await _load_player_games(dialog_manager)
+        dd["player_games"] = games
+    items: List[Dict[str, Any]] = [{"id": i, "title": _game_title(g)} for i, g in enumerate(games or [])]
+    return {"items": items, "has_items": bool(items)}
+
+
+async def getter_master_list(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
+    dd = dialog_manager.dialog_data
+    games = dd.get("master_games")
+    if games is None:
+        games = await _load_master_games(dialog_manager)
+        dd["master_games"] = games
+    items: List[Dict[str, Any]] = [{"id": i, "title": _game_title(g)} for i, g in enumerate(games or [])]
+    return {"items": items, "has_items": bool(items)}
+
+
+async def getter_view(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
+    dd = dialog_manager.dialog_data
+    selected: Optional[Tuple[str, int]] = dd.get("selected_game")  # ("player"|"master", idx)
+    if not selected:
+        return {"details": "Игра не выбрана."}
+    kind, idx = selected
+    lst = dd.get("player_games") if kind == "player" else dd.get("master_games")
+    lst = lst or []
+    g = lst[idx] if 0 <= idx < len(lst) else {}
+    return {"details": _game_details(g)}
+
+
+# ---------------- click handlers ----------------
+
+async def open_player_game(c: CallbackQuery, w: Select, dialog_manager: DialogManager, item_id: int):
+    dd = dialog_manager.dialog_data
+    dd["selected_game"] = ("player", int(item_id))
+    await dialog_manager.switch_to(AllGames.viewing_game)
+
+
+async def open_master_game(c: CallbackQuery, w: Select, dialog_manager: DialogManager, item_id: int):
+    dd = dialog_manager.dialog_data
+    dd["selected_game"] = ("master", int(item_id))
+    await dialog_manager.switch_to(AllGames.viewing_game)
+
+
+# ---------------- dialog ----------------
+
 all_games_dialog = Dialog(
+    # 0) Menu / checking_games
     Window(
-        Const("Здесь вы можете просмотреть и отредактировать все созданные вами игры, а также отслеживать статус поданных заявок на игру"),
-        Row(
-            SwitchTo(Const("Созданные игры"), state=AllGames.checking_master_games, id="player_games"),
-            SwitchTo(Const("Поданные заявки"), state=AllGames.checking_player_games, id="master_games"),
+        Multi(
+            Const("Ваши игры 📚"),
+            Jinja("\nКак игрок: <b>{{ player_count }}</b>"),
+            Jinja("\nКак мастер: <b>{{ master_count }}</b>"),
         ),
-        SwitchTo(Const("Архив"), state=AllGames.checking_archive, id="archive"),
-        Cancel(Const("Выйти")),
+        Row(
+            SwitchTo(Const("Игры (я игрок)"), id="to_player_list", state=AllGames.listing_player_games),
+            SwitchTo(Const("Игры (я мастер)"), id="to_master_list", state=AllGames.listing_master_games),
+        ),
+        Cancel(Const("Закрыть")),
+        getter=getter_menu,
         state=AllGames.checking_games,
     ),
-    Window(
-        Const("Здесь хранятся игры, перенесённые в архив."),
-        Row(
-            SwitchTo(Const("Созданные игры"), state=AllGames.checking_master_archive, id="player_archive"),
-            SwitchTo(Const("Поданные заявки"), state=AllGames.checking_player_archive, id="master_archive"),
-        ),
-        SwitchTo(Const("Назад"), state=AllGames.checking_games, id="back_to_checking_games_from_archive"),
-        state=AllGames.checking_archive,
-    ),
-    generate_folder_inspection("player", "games", get_player_games, AllGames.checking_player_games, AllGames.checking_games, False),
-    generate_folder_inspection("master", "games", get_master_games, AllGames.checking_master_games, AllGames.checking_games, True),
-    generate_folder_inspection("player", "archive", get_player_archive, AllGames.checking_player_archive, AllGames.checking_archive, False),
-    generate_folder_inspection("master", "archive", get_master_archive, AllGames.checking_master_archive, AllGames.checking_archive, False),
 
+    # 1) Player games list
+    Window(
+        Multi(
+            Const("Список игр, где вы игрок:\n"),
+            Jinja("{% if not has_items %}<i>Ничего не найдено</i>{% endif %}"),
+        ),
+        Select(
+            Format("{item[title]}"),
+            id="player_game_select",
+            item_id_getter=lambda item: item["id"],
+            items="items",
+            on_click=open_player_game,
+            when=lambda d, *_: d.get("has_items", False),
+        ),
+        Row(Back(Const("Назад")), Cancel(Const("Закрыть"))),
+        getter=getter_player_list,
+        state=AllGames.listing_player_games,
+    ),
+
+    # 2) Master games list
+    Window(
+        Multi(
+            Const("Список игр, где вы мастер:\n"),
+            Jinja("{% if not has_items %}<i>Ничего не найдено</i>{% endif %}"),
+        ),
+        Select(
+            Format("{item[title]}"),
+            id="master_game_select",
+            item_id_getter=lambda item: item["id"],
+            items="items",
+            on_click=open_master_game,
+            when=lambda d, *_: d.get("has_items", False),
+        ),
+        Row(Back(Const("Назад")), Cancel(Const("Закрыть"))),
+        getter=getter_master_list,
+        state=AllGames.listing_master_games,
+    ),
+
+    # 3) View one game
+    Window(
+        Jinja("{{ details }}"),
+        Row(Back(Const("Назад")), Cancel(Const("Закрыть"))),
+        getter=getter_view,
+        state=AllGames.viewing_game,
+    ),
 )

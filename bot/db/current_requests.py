@@ -1,185 +1,271 @@
-# TODO: rewrite all of that to database requests
+# db_getters.py
+# Async getters for aiogram_dialog that fetch from the database instead of in-memory dicts.
+
+from __future__ import annotations
+
 import logging
+from typing import Any, Dict, List, Optional
+from sqlalchemy import text
 
 from aiogram_dialog import DialogManager
+from sqlalchemy.ext.asyncio import AsyncSession
 
-# TODO: think about other parameters, that might be useful
-# Things to consider
-# PLAYER:
-# - what do you value most on the game (kinda similar to about in general)
-# MASTER:
-# -
-
-# TEST DATA
-# {"title": "name_master", "status": "Глеб"},
-#         {"title": "username_master", "status": "@zerr0l"},
-#         {"title": "age_master", "status": "19"},
-#         {"title": "city_master", "status": "Moscow"},
-#         {"title": "system_master", "status": "D&D"},
-#         {"title": "edition_master", "status": "5e"},
-#         {"title": "balance_master", "status": "13200"},
-
-# in player/master there are only ids of games
-user = {
-    "general": {"name": "", "age": 18, "city": "", "time_zone": "", "role": "", "format": "", "about_info": ""},
-    "player": {"experience": "", "payment": "", "systems": [], "games": ["id_000000"], "archive": [], "rating": 0, "reviews": {}},
-    "master": {"is_filled": False, "experience": "", "cost": "", "place": "", "platform": "", "requirements": "", "games": ["id_000000"], "archive": [], "rating": 0, "reviews": {}},
-}
-
-users = {
-    "id_000000": user
-}
-
-# in player/master there are only ids of users
-game = {
-    "status": "Набор игроков открыт",
-    "master": "id_000000",
-    "players": ["id_000000"],
-    "requests": ["id_000000"],
-    "title": "Тестовая игра",
-    "place": "Улица Пушкина, дом Колотушкина",
-    "platform": "",
-    "time": "2222.2.22 22:22:22",
-    "cost": "222 рубля",
-    "format": "Оффлайн",
-    "type": "Ваншот",
-    "system": "D&D 5e",
-    "min_players_number": 3,
-    "max_players_number": 4,
-    "requirements": "Дожить",
-    "min_age": 80,
-    "max_age": 99,
-    "description": "Вот бы сейчас, эххх",
-    "picture": "",
-}
-
-default_game = {
-    "status": "Набор игроков закрыт",
-    "master": "id_000000",
-    "players": [],
-    "requests": [],
-    "title": "",
-    "place": "",
-    "platform": "",
-    "time": "",
-    "cost": "",
-    "format": "",
-    "type": "",
-    "system": "",
-    "min_players_number": 0,
-    "max_players_number": 0,
-    "requirements": "",
-    "min_age": 14,
-    "max_age": 99,
-    "description": "",
-    "picture": "",
-}
-
-games = {
-    "id_000000": game
-}
+# Adjust these imports to your package layout if needed
+from bot.db.models import UserModel, SessionModel, PlayerModel, MasterModel  # type: ignore
+from bot.db.requests import (
+    get_user_model,
+    get_game_model,
+)  # type: ignore
 
 
-open_games = {
-    "id_000000",
-    "id_000000"
-}
+def _extract_session(dialog_manager: DialogManager, **kwargs) -> AsyncSession:
+    sess: Optional[AsyncSession] = kwargs.get("session")
+    if sess is None:
+        md = getattr(dialog_manager, "middleware_data", {}) or {}
+        for key in ("session", "db", "db_session"):
+            if key in md and isinstance(md[key], AsyncSession):
+                sess = md[key]  # type: ignore[assignment]
+                break
+    if sess is None:
+        raise RuntimeError(
+            "AsyncSession not found. Pass it as `session=...` or provide it via dialog_manager.middleware_data['db_session']."
+        )
+    return sess
 
 
-# These are ttrpgs from top of the list of ORR Roll20 report Q3 | 2021, maybe some other systems should be added:
-# Star Wars, Blades in the Dark, Apocalypse World System, Mutants and Masterminds, Shadowrun, Savage Worlds, Vampire: The Masquerade (as separate from World of Darkness category)
-popular_systems = [
-    {"system": "D&D", "id": "system_dnd"},
-    {"system": "Зов Ктулху", "id": "system_call_of_cthulhu"},
-    {"system": "Pathfinder", "id": "system_pathfinder"},
-    {"system": "Warhammer", "id": "system_warhammer"},
-    {"system": "Мир Тьмы", "id": "system_world_of_darkness"},
-    {"system": "Starfinder", "id": "system_starfinder"},
-    {"system": "FATE", "id": "system_fate"},
-    {"system": "Savage Worlds", "id": "system_savage_worlds"},
-    {"system": "Cyberpunk", "id": "system_cyberpunk"},
-    {"system": "GURPS", "id": "system_gurps"},
-]
+def _current_tg_id(dialog_manager: DialogManager) -> int:
+    try:
+        return int(dialog_manager.event.from_user.id)
+    except Exception as e:
+        raise RuntimeError("Cannot resolve Telegram user id from dialog_manager.event") from e
 
 
-# CONSTANTS
-MIN_AGE = 14
-MAX_AGE = 99
-MIN_PLAYERS_NUMBER = 1
-MAX_PLAYERS_NUMBER = 20
+async def get_user_general(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
+    session = _extract_session(dialog_manager, **kwargs)
+    tg_id = _current_tg_id(dialog_manager)
+
+    user: Optional[UserModel] = await get_user_model(session, tg_id)
+    if not user:
+        logging.warning("get_user_general: user %s not found", tg_id)
+        return {"name": "", "age": 18, "city": "", "time_zone": "", "role": "", "format": "", "about_info": ""}
+
+    return {
+        "name": user.name or "",
+        "age": int(user.age) if user.age is not None else 18,
+        "city": user.city or "",
+        "time_zone": user.time_zone or "",
+        "role": user.role or "",
+        "format": user.game_format or "",
+        "about_info": user.about_info or "",
+    }
 
 
-# Passing arguments to dialog (GETTERS)
-async def get_user_general(**kwargs):
-    return user["general"]
+async def get_user_player(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
+    session = _extract_session(dialog_manager, **kwargs)
+    tg_id = _current_tg_id(dialog_manager)
+
+    user: Optional[UserModel] = await get_user_model(session, tg_id)
+    if not user or not user.player_profile:
+        return {"experience": "", "payment": "", "systems": [], "games": [], "archive": [], "rating": 0, "reviews": {}}
+
+    p = user.player_profile
+
+    # preferred_systems у UserModel — строка; превратим в список
+    try:
+        systems = [s.strip() for s in (user.preferred_systems or "").split(",") if s.strip()]
+    except Exception:
+        systems = []
+
+    games_brief: List[Dict[str, str]] = [{"status": s.status or "", "title": s.title or ""} for s in p.games]
+    archive_brief: List[Dict[str, str]] = [{"status": s.status or "", "title": s.title or ""} for s in p.archive]
+
+    return {
+        "experience": p.experience or "",
+        "payment": p.payment or "",
+        "systems": systems,
+        "games": games_brief,
+        "archive": archive_brief,
+        "rating": int(p.rating) if p.rating is not None else 0,
+        "reviews": p.reviews or {},
+    }
 
 
-async def get_user_player(**kwargs):
-    return user["player"]
+async def get_user_master(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
+    session = _extract_session(dialog_manager, **kwargs)
+    tg_id = _current_tg_id(dialog_manager)
+
+    user: Optional[UserModel] = await get_user_model(session, tg_id)
+    if not user or not user.master_profile:
+        return {
+            "is_filled": False, "experience": "", "cost": "", "place": "", "platform": "",
+            "requirements": "", "games": [], "archive": [], "rating": 0, "reviews": {},
+        }
+
+    m = user.master_profile
+    games_brief: List[Dict[str, str]] = [{"status": s.status or "", "title": s.title or ""} for s in m.games]
+    archive_brief: List[Dict[str, str]] = [{"status": s.status or "", "title": s.title or ""} for s in m.archive]
+
+    return {
+        "is_filled": bool(m.is_filled),
+        "experience": m.experience or "",
+        "cost": m.cost or "",
+        "place": m.place or "",
+        "platform": m.platform or "",
+        "requirements": m.requirements or "",
+        "games": games_brief,
+        "archive": archive_brief,
+        "rating": int(m.rating) if m.rating is not None else 0,
+        "reviews": m.reviews or {},
+    }
 
 
-async def get_user_master(**kwargs):
-    return user["master"]
+async def get_player_games(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
+    session = _extract_session(dialog_manager, **kwargs)
+    tg_id = _current_tg_id(dialog_manager)
 
+    user: Optional[UserModel] = await get_user_model(session, tg_id)
+    if not user or not user.player_profile:
+        return {"games": []}
 
-async def get_player_games(dialog_manager: DialogManager, **kwargs):
-    player_games = []
-    for game_id in user["player"]["games"]:
-        user_id = "id_000000"
+    result: List[Dict[str, str]] = []
+    for s in user.player_profile.games:
+        # при желании можно дообновить запись из БД
+        try:
+            db_game = await get_game_model(session, s.id)
+        except Exception:
+            db_game = None
+        session_model = db_game or s
 
-        current_game = games.get(game_id)
-        if current_game is None:
-            logging.critical("cannot find game by id {}".format(game_id))
-            await dialog_manager.done()
-            return
+        in_players = any(getattr(p, "telegram_id", None) == tg_id for p in session_model.players)
+        try:
+            in_requests = any(getattr(r, "telegram_id", None) == tg_id for r in session_model.requests)  # если есть relation
+        except Exception:
+            in_requests = False
 
-        if user_id in games[game_id]["players"]:
+        if in_players:
             status = "Заявка принята"
-        elif user_id in games[game_id]["requests"]:
+        elif in_requests:
             status = "Заявка находится на рассмотрении"
         else:
             status = "Заявка отклонена"
 
-        game_title_and_status = {"status": status, "title": games[game_id]["title"]}
-        player_games.append(game_title_and_status)
-    return {"games": player_games}
+        result.append({"status": status, "title": session_model.title or ""})
+
+    return {"games": result}
 
 
-async def get_master_games(**kwargs):
-    master_games = []
-    for game_id in user["master"]["games"]:
-        game_title_and_status = {"status": games[game_id]["status"], "title": games[game_id]["title"]}
-        master_games.append(game_title_and_status)
-    return {"games": master_games}
+async def get_master_games(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
+    session = _extract_session(dialog_manager, **kwargs)
+    tg_id = _current_tg_id(dialog_manager)
+
+    user: Optional[UserModel] = await get_user_model(session, tg_id)
+    if not user or not user.master_profile:
+        return {"games": []}
+
+    return {"games": [{"status": s.status or "", "title": s.title or ""} for s in user.master_profile.games]}
 
 
-async def get_player_archive(dialog_manager: DialogManager, **kwargs):
-    player_archive = []
-    for game_id in user["player"]["archive"]:
-        user_id = "id_000000"
+async def get_player_archive(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
+    session = _extract_session(dialog_manager, **kwargs)
+    tg_id = _current_tg_id(dialog_manager)
 
-        current_game = games.get(game_id)
-        if current_game is None:
-            logging.critical("cannot find game by id {}".format(game_id))
-            await dialog_manager.done()
-            return
+    user: Optional[UserModel] = await get_user_model(session, tg_id)
+    if not user or not user.player_profile:
+        return {"games": []}
 
-        if user_id in games[game_id]["players"]:
+    result: List[Dict[str, str]] = []
+    for s in user.player_profile.archive:
+        in_players = any(getattr(p, "telegram_id", None) == tg_id for p in s.players)
+        try:
+            in_requests = any(getattr(r, "telegram_id", None) == tg_id for r in s.requests)
+        except Exception:
+            in_requests = False
+
+        if in_players:
             status = "Заявка принята"
-        elif user_id in games[game_id]["requests"]:
+        elif in_requests:
             status = "Заявка находится на рассмотрении"
         else:
             status = "Заявка отклонена"
 
-        game_title_and_status = {"status": status, "title": games[game_id]["title"]}
-        player_archive.append(game_title_and_status)
-    return {"games": player_archive}
+        result.append({"status": status, "title": s.title or ""})
+
+    return {"games": result}
 
 
-async def get_master_archive(**kwargs):
-    master_archive = []
-    for game_id in user["master"]["archive"]:
-        game_title_and_status = {"status": games[game_id]["status"], "title": games[game_id]["title"]}
-        master_archive.append(game_title_and_status)
-    return {"games": master_archive}
+async def get_master_archive(dialog_manager: DialogManager, **kwargs) -> Dict[str, Any]:
+    session = _extract_session(dialog_manager, **kwargs)
+    tg_id = _current_tg_id(dialog_manager)
 
+    user: Optional[UserModel] = await get_user_model(session, tg_id)
+    if not user or not user.master_profile:
+        return {"games": []}
+
+    return {"games": [{"status": s.status or "", "title": s.title or ""} for s in user.master_profile.archive]}
+
+async def get_open_games(
+    dialog_manager: DialogManager,
+    *,
+    session: Optional[AsyncSession] = None,
+    limit: int = 100,
+) -> Sequence[Dict[str, Any]]:
+    """
+    Load open games from DB for the search dialog.
+
+    Returns a list of dicts like:
+    {
+        "id": 123,
+        "title": "Some title",
+        "system": "D&D 5e",
+        "format": "online",
+        "place": "Roll20/Discord",
+        "cost": "Free",
+        "description": "...",
+        "master_name": "Alice",
+        "players": [],   # fill if you want; empty list is fine
+    }
+    """
+    sess: AsyncSession = session or _extract_session(dialog_manager)
+
+    # Grab basic game info + master's display name if available
+    q = text(
+        """
+        SELECT
+            g.id,
+            g.title,
+            COALESCE(g.system, '')      AS system,
+            COALESCE(g.format, '')      AS format,
+            COALESCE(g.place, '')       AS place,
+            COALESCE(g.cost, '')        AS cost,
+            COALESCE(g.description, '') AS description,
+            COALESCE(u.name, '')        AS master_name
+        FROM games AS g
+        LEFT JOIN users AS u ON u.id = g.master_user_id
+        WHERE g.is_open = TRUE
+        ORDER BY g.created_at DESC
+        LIMIT :limit
+        """
+    )
+    res = await sess.execute(q, {"limit": limit})
+    rows = res.mappings().all()
+
+    # You can enrich with players list here if needed.
+    games: List[Dict[str, Any]] = []
+    for r in rows:
+        games.append(
+            {
+                "id": r["id"],
+                "title": r["title"] or "Без названия",
+                "system": r["system"] or "—",
+                "format": r["format"] or "—",
+                "place": r["place"] or "—",
+                "cost": r["cost"] or "—",
+                "description": r["description"] or "",
+                "master_name": r["master_name"] or "—",
+                "players": [],
+            }
+        )
+    return games
+
+# Backward-compat alias (so older imports still work)
+open_games = get_open_games

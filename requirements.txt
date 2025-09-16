@@ -10,7 +10,8 @@ alembic
 asyncpg
 python-dotenv
 aioredis
-psycopg2
+psycopg2-binary==2.9.9
 pytz~=2024.2
 aiogram_dialog~=2.3.1
 pydantic-settings~=2.8.1
+greenlet>=3.0,<4.0

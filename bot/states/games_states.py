@@ -1,54 +1,40 @@
-from aiogram.fsm.state import State, StatesGroup
+from __future__ import annotations
+from aiogram.fsm.state import StatesGroup, State
 
 
 class AllGames(StatesGroup):
+    """States for 'My games' section."""
+    player_games = State()
+    master_games = State()
+    player_archive = State()
+    master_archive = State()
     checking_games = State()
-    checking_archive = State()
-    checking_master_games = State()
-    checking_master_archive = State()
-    checking_player_games = State()
-    checking_player_archive = State()
-
-
-class GameInspection(StatesGroup):
-    # General
-    checking_game = State()
-    choosing_who_to_rate = State()
-    rating_user = State()
-    delete_game_confirmation = State()
-    change_game_folder_confirmation = State()
-    # Master
-    choosing_what_to_edit = State()
-    set_status_public_confirmation = State()
-    set_status_done_confirmation = State()
-    checking_all_requests = State()
-    checking_request = State()
-    managing_group = State()
-    kick_confirmation = State()
-
+    listing_player_games = State()
+    listing_master_games = State()
+    viewing_game = State()
 
 
 class GameCreation(StatesGroup):
+    """States for game creation/editing."""
     choosing_default = State()
     typing_title = State()
+    typing_description = State()
+    choosing_system = State()
     choosing_format = State()
-    typing_place = State()
-    typing_platform = State()
+    choosing_place = State()
     choosing_cost = State()
     typing_cost = State()
-    typing_time = State()
-    choosing_type = State()
-    choosing_system = State()
-    choosing_edition = State()
-    choosing_players_number = State()
-    choosing_age = State()
-    typing_requirements = State()
-    typing_description = State()
-    loading_picture = State()
+    confirming = State()
+
 
 class SearchingGame(StatesGroup):
-    checking_open_games = State()
-    checking_specific_game = State()
-    checking_master_form = State()
-    checking_filters = State()
-    checking_systems_filter = State()
+    """States for searching/browsing games."""
+    checking_open_games = State()   # <-- added to satisfy default_commands.start(...)
+    choosing_filters = State()
+    listing_results = State()
+    inspecting_game = State()
+
+
+class GameInspection(StatesGroup):
+    """States for inspecting a specific game."""
+    viewing = State()
